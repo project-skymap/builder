@@ -3,16 +3,15 @@
 import { useCallback, useMemo } from "react";
 import type { SceneNode, StarMapConfig } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel } from "@project-skymap/library";
-import bible from "./bible.json";
+import bible from "../public/bible.json";
 
 export default function Page() {
-  const model = useMemo(() => bibleToSceneModel(bible), []);
-
   const config = useMemo<StarMapConfig>(
     () => ({
       background: "#05060a",
       camera: { fov: 60, z: 120 },
-      model,
+      data: bible,
+      adapter: bibleToSceneModel,
       visuals: {
         colorBy: [
           { when: { icon: "✝️" }, value: "#e23f6d" },
@@ -28,11 +27,11 @@ export default function Page() {
           { when: { level: 2 }, value: "#fbbf24" },
           { when: { level: 3 }, value: "#c084fc" }
         ],
-        sizeBy: [{ when: { level: 3 }, field: "weight", scale: [0.6, 2.4] }]
+        sizeBy: [{ when: { level: 3 }, field: "weight", scale: [0.2, 0.8] }]
       },
-      layout: { mode: "radial", radius: 18, chapterRingSpacing: 8 }
+      layout: { mode: "radial", radius: 100, chapterRingSpacing: 40 }
     }),
-    [model]
+    []
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
