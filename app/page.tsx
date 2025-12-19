@@ -27,9 +27,9 @@ export default function Page() {
           { when: { level: 2 }, value: "#fbbf24" },
           { when: { level: 3 }, value: "#c084fc" }
         ],
-        sizeBy: [{ when: { level: 3 }, field: "weight", scale: [0.2, 0.8] }]
+        sizeBy: [{ when: { level: 3 }, field: "weight", scale: [0.5, 3.0] }]
       },
-      layout: { mode: "radial", radius: 100, chapterRingSpacing: 40 }
+      layout: { mode: "spherical", radius: 500, chapterRingSpacing: 40 }
     }),
     []
   );
