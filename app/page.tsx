@@ -5,6 +5,33 @@ import type { SceneNode, StarMapConfig } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel } from "@project-skymap/library";
 import bible from "../public/bible.json";
 
+const BOOK_COLORS: Record<string, string> = {};
+
+// Simple hash-based color generator for books
+function getBookColor(bookKey: string) {
+  if (BOOK_COLORS[bookKey]) return BOOK_COLORS[bookKey];
+  
+  let hash = 0;
+  for (let i = 0; i < bookKey.length; i++) {
+    hash = bookKey.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  const h = Math.abs(hash % 360);
+  const s = 60 + (Math.abs(hash >> 8) % 30); // 60-90% saturation
+  const l = 60 + (Math.abs(hash >> 16) % 20); // 60-80% lightness
+  
+  const color = `hsl(${h}, ${s}%, ${l}%)`;
+  BOOK_COLORS[bookKey] = color;
+  return color;
+}
+
+// Pre-generate all book colors
+bible.testaments.forEach(t => 
+  t.divisions.forEach(d => 
+    d.books.forEach(b => getBookColor(b.key))
+  )
+);
+
 export default function Page() {
   const config = useMemo<StarMapConfig>(
     () => ({
@@ -14,18 +41,14 @@ export default function Page() {
       adapter: bibleToSceneModel,
       visuals: {
         colorBy: [
-          { when: { icon: "✝️" }, value: "#e23f6d" },
-          { when: { icon: "☀️" }, value: "#f7d046" },
-          { when: { icon: "💔" }, value: "#f97316" },
-          { when: { icon: "✨" }, value: "#7dd3fc" },
-          { when: { icon: "⚖️" }, value: "#9ca3af" },
-          { when: { icon: "🧠" }, value: "#a855f7" },
-          { when: { icon: "🙏" }, value: "#86efac" },
-          { when: { icon: "📖" }, value: "#60a5fa" },
+          // Per-book colors (level 3)
+          ...Object.entries(BOOK_COLORS).map(([key, color]) => ({
+            when: { bookKey: key, level: 3 },
+            value: color
+          })),
           { when: { level: 0 }, value: "#38bdf8" },
           { when: { level: 1 }, value: "#a3e635" },
-          { when: { level: 2 }, value: "#fbbf24" },
-          { when: { level: 3 }, value: "#c084fc" }
+          { when: { level: 2 }, value: "#ffffff" },
         ],
         sizeBy: [{ when: { level: 3 }, field: "weight", scale: [0.5, 3.0] }]
       },
