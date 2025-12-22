@@ -36,6 +36,10 @@ export default function Page() {
 
   const handleSelect = useCallback((node: SceneNode) => {
     console.log("Selected node:", node);
+    if (node.level === 3) {
+      const { book, chapter } = node.meta as { book: string; chapter: number };
+      alert(`Book: ${book}, Chapter: ${chapter}`);
+    }
   }, []);
 
   const handleHover = useCallback((node?: SceneNode) => {
