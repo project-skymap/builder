@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { SceneNode, StarMapConfig } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel } from "@project-skymap/library";
 import bible from "../public/bible.json";
@@ -32,7 +32,18 @@ bible.testaments.forEach(t =>
   )
 );
 
+// Define a "Correct Answer" for testing
+const ANSWER = {
+  testament: "New",
+  division: "Gospels",
+  book: "John",
+  bookKey: "JHN",
+  chapter: 3
+};
+
 export default function Page() {
+  const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
+
   const config = useMemo<StarMapConfig>(
     () => ({
       background: "#05060a",
@@ -52,22 +63,53 @@ export default function Page() {
         ],
         sizeBy: [{ when: { level: 3 }, field: "weight", scale: [0.5, 3.0] }]
       },
-      layout: { mode: "spherical", radius: 500, chapterRingSpacing: 40 }
+      layout: { mode: "spherical", radius: 500, chapterRingSpacing: 40 },
+      focus: {
+        nodeId: focusNodeId,
+        animate: true
+      }
     }),
-    []
+    [focusNodeId]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
     console.log("Selected node:", node);
-    if (node.level === 3) {
-      const { book, chapter } = node.meta as { book: string; chapter: number };
-      alert(`Book: ${book}, Chapter: ${chapter}`);
+
+    // Simulate "Is Correct?" logic
+    // Level 0: Testament
+    if (node.level === 0) {
+      if (node.label === ANSWER.testament) {
+        setFocusNodeId(node.id);
+      }
+    }
+    // Level 1: Division
+    else if (node.level === 1) {
+      if (node.label === ANSWER.division) {
+        setFocusNodeId(node.id);
+      }
+    }
+    // Level 2: Book
+    else if (node.level === 2) {
+      const { bookKey } = node.meta as { bookKey: string };
+      if (bookKey === ANSWER.bookKey) {
+        setFocusNodeId(node.id);
+      }
+    }
+    // Level 3: Chapter
+    else if (node.level === 3) {
+      const { bookKey, chapter } = node.meta as { bookKey: string; chapter: number };
+      if (bookKey === ANSWER.bookKey && chapter === ANSWER.chapter) {
+        setFocusNodeId(node.id); // Focus on the winning chapter
+      } else if (bookKey === ANSWER.bookKey) {
+         // Correct book, wrong chapter -> Focus the book if not already
+         setFocusNodeId(`B:${bookKey}`);
+      }
     }
   }, []);
 
   const handleHover = useCallback((node?: SceneNode) => {
     if (node) {
-      console.log("Hover node:", node);
+      // console.log("Hover node:", node);
     }
   }, []);
 
@@ -80,9 +122,23 @@ export default function Page() {
         color: "#e5e7eb",
         margin: 0,
         padding: 0,
-        overflow: "hidden"
+        overflow: "hidden",
+        position: "relative"
       }}
     >
+      <div style={{ position: "absolute", top: 20, left: 20, zIndex: 10, background: "rgba(0,0,0,0.5)", padding: 10, borderRadius: 8 }}>
+        <p><strong>Goal:</strong> Find {ANSWER.book} {ANSWER.chapter}</p>
+        <p>1. Select "New Testament"</p>
+        <p>2. Select "Prophecy"</p>
+        <p>3. Select "Revelation"</p>
+        <button 
+            onClick={() => setFocusNodeId(undefined)}
+            style={{ marginTop: 10, padding: "5px 10px", cursor: "pointer" }}
+        >
+            Reset Focus
+        </button>
+      </div>
+
       <StarMap
         className="starmap"
         config={config}
