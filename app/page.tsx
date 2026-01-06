@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useRef } from "react";
 import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel } from "@project-skymap/library";
 import bible from "../public/bible.json";
+import initialArrangement from "./arrangement.json";
 
 const BOOK_COLORS: Record<string, string> = {};
 
@@ -43,7 +44,7 @@ const ANSWER = {
 
 export default function Page() {
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
-  const [arrangement, setArrangement] = useState<StarArrangement>({});
+  const [arrangement, setArrangement] = useState<StarArrangement>(initialArrangement as StarArrangement);
   const [isEditable, setIsEditable] = useState(false);
   const mapRef = useRef<StarMapHandle>(null);
 
@@ -165,12 +166,17 @@ export default function Page() {
                 {isEditable ? "Stop Editing" : "Edit Stars"}
             </button>
             {isEditable && (
-                <button 
-                    onClick={handleExport}
-                    style={{ marginLeft: 10, padding: "5px 10px", cursor: "pointer" }}
-                >
-                    Export JSON
-                </button>
+                <div style={{ marginTop: 10 }}>
+                    <button 
+                        onClick={handleExport}
+                        style={{ padding: "5px 10px", cursor: "pointer" }}
+                    >
+                        Export JSON
+                    </button>
+                    <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 5 }}>
+                        Click Export, then overwrite <code>builder/app/arrangement.json</code> with the result.
+                    </p>
+                </div>
             )}
         </div>
       </div>
