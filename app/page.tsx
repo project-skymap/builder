@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import type { SceneNode, StarMapConfig, StarArrangement } from "@project-skymap/library";
+import { useCallback, useMemo, useState, useRef } from "react";
+import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel } from "@project-skymap/library";
 import bible from "../public/bible.json";
 
@@ -45,17 +45,21 @@ export default function Page() {
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   const [arrangement, setArrangement] = useState<StarArrangement>({});
   const [isEditable, setIsEditable] = useState(false);
+  const mapRef = useRef<StarMapHandle>(null);
 
   const handleArrangementChange = useCallback((newArr: StarArrangement) => {
     setArrangement(newArr);
   }, []);
 
   const handleExport = useCallback(() => {
-    const json = JSON.stringify(arrangement, null, 2);
-    console.log(json);
+    const fullArr = mapRef.current?.getFullArrangement();
+    if (!fullArr) return;
+
+    const json = JSON.stringify(fullArr, null, 2);
+    console.log("Full Arrangement:", json);
     navigator.clipboard.writeText(json).catch(() => {});
-    alert("Arrangement exported to console and clipboard!");
-  }, [arrangement]);
+    alert("Full arrangement exported to console and clipboard!");
+  }, []);
 
   const config = useMemo<StarMapConfig>(
     () => ({
@@ -172,6 +176,7 @@ export default function Page() {
       </div>
 
       <StarMap
+        ref={mapRef}
         className="starmap"
         config={config}
         onSelect={handleSelect}
