@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import type { SceneNode, StarMapConfig } from "@project-skymap/library";
+import type { SceneNode, StarMapConfig, StarArrangement } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel } from "@project-skymap/library";
 import bible from "../public/bible.json";
 
@@ -43,6 +43,19 @@ const ANSWER = {
 
 export default function Page() {
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
+  const [arrangement, setArrangement] = useState<StarArrangement>({});
+  const [isEditable, setIsEditable] = useState(false);
+
+  const handleArrangementChange = useCallback((newArr: StarArrangement) => {
+    setArrangement(newArr);
+  }, []);
+
+  const handleExport = useCallback(() => {
+    const json = JSON.stringify(arrangement, null, 2);
+    console.log(json);
+    navigator.clipboard.writeText(json).catch(() => {});
+    alert("Arrangement exported to console and clipboard!");
+  }, [arrangement]);
 
   const config = useMemo<StarMapConfig>(
     () => ({
@@ -50,6 +63,8 @@ export default function Page() {
       camera: { fov: 60, z: 120 },
       data: bible,
       adapter: bibleToSceneModel,
+      arrangement,
+      editable: isEditable,
       visuals: {
         colorBy: [
           // Per-book colors (level 3)
@@ -69,7 +84,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId]
+    [focusNodeId, arrangement, isEditable]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -137,6 +152,23 @@ export default function Page() {
         >
             Reset Focus
         </button>
+
+        <div style={{ marginTop: 20, borderTop: "1px solid #555", paddingTop: 10 }}>
+            <button 
+                onClick={() => setIsEditable(!isEditable)}
+                style={{ padding: "5px 10px", cursor: "pointer", background: isEditable ? "#ef4444" : "#3b82f6", color: "white", border: "none", borderRadius: 4 }}
+            >
+                {isEditable ? "Stop Editing" : "Edit Stars"}
+            </button>
+            {isEditable && (
+                <button 
+                    onClick={handleExport}
+                    style={{ marginLeft: 10, padding: "5px 10px", cursor: "pointer" }}
+                >
+                    Export JSON
+                </button>
+            )}
+        </div>
       </div>
 
       <StarMap
@@ -144,6 +176,7 @@ export default function Page() {
         config={config}
         onSelect={handleSelect}
         onHover={handleHover}
+        onArrangementChange={handleArrangementChange}
       />
     </div>
   );
