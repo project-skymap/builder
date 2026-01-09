@@ -81,7 +81,7 @@ export default function Page() {
           { when: { level: 1 }, value: "#a3e635" },
           { when: { level: 2 }, value: "#ffffff" },
         ],
-        sizeBy: [{ when: { level: 3 }, field: "weight", scale: [0.5, 3.0] }]
+        sizeBy: [{ when: { level: 3 }, field: "weight", scale: [2.0, 5.0] }]
       },
       layout: { mode: "spherical", radius: 500, chapterRingSpacing: 40 },
       focus: {
