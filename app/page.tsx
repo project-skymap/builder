@@ -65,7 +65,7 @@ export default function Page() {
   const config = useMemo<StarMapConfig>(
     () => ({
       background: "#05060a",
-      camera: { fov: 60, z: 120 },
+      camera: { fov: 80, z: 120 },
       data: bible,
       adapter: bibleToSceneModel,
       arrangement,
