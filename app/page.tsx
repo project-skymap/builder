@@ -4,13 +4,8 @@ import { useCallback, useMemo, useState, useRef } from "react";
 import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel } from "@project-skymap/library";
 import bible from "../public/bible.json";
-import initialArrangementRaw from "./arrangement-2d.json";
-import initialPolygons from "./arrangement-polygons.json";
-
-const initialArrangement = Object.entries(initialArrangementRaw).reduce((acc, [key, val]) => {
-  acc[key] = { position: [val.pos[0], val.pos[1], 0] };
-  return acc;
-}, {} as any);
+import initialArrangement from "./arrangement.json";
+import groups from "./groups.json";
 
 const BOOK_COLORS: Record<string, string> = {};
 
@@ -50,7 +45,7 @@ const ANSWER = {
 
 export default function Page() {
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
-  const [arrangement, setArrangement] = useState<StarArrangement>(initialArrangement as StarArrangement);
+  const [arrangement, setArrangement] = useState<StarArrangement>(initialArrangement as unknown as StarArrangement);
   const [isEditable, setIsEditable] = useState(false);
   const mapRef = useRef<StarMapHandle>(null);
 
@@ -73,22 +68,26 @@ export default function Page() {
       background: "#05060a",
       camera: { fov: 80, z: 120 },
       data: bible,
-      adapter: bibleToSceneModel,
+      adapter: (data) => bibleToSceneModel(data, groups as any),
       arrangement,
-      polygons: initialPolygons as Record<string, [number, number, number][]>,
       editable: isEditable,
       visuals: {
         colorBy: [
-          // Per-book colors (level 3)
-          ...Object.entries(BOOK_COLORS).map(([key, color]) => ({
-            when: { bookKey: key, level: 3 },
-            value: color
-          })),
+          // Per-book colors (level 3 & 4)
+          ...Object.entries(BOOK_COLORS).flatMap(([key, color]) => [
+            { when: { bookKey: key, level: 3 }, value: color },
+            { when: { bookKey: key, level: 4 }, value: color }
+          ]),
           { when: { level: 0 }, value: "#38bdf8" },
           { when: { level: 1 }, value: "#a3e635" },
           { when: { level: 2 }, value: "#ffffff" },
+          { when: { level: 3 }, value: "#ffffff" },
+          { when: { level: 4 }, value: "#ffffff" },
         ],
-        sizeBy: [{ when: { level: 3 }, field: "weight", scale: [2.0, 5.0] }]
+        sizeBy: [
+            { when: { level: 3 }, field: "weight", scale: [2.0, 5.0] },
+            { when: { level: 4 }, field: "weight", scale: [2.0, 5.0] }
+        ]
       },
       layout: { mode: "spherical", radius: 500, chapterRingSpacing: 40 },
       focus: {
