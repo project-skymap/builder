@@ -4,13 +4,8 @@ import { useCallback, useMemo, useState, useRef } from "react";
 import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel } from "@project-skymap/library";
 import bible from "../public/bible.json";
-import initialArrangementRaw from "./arrangement-2d.json";
+import initialArrangement from "./arrangement.json";
 import initialPolygons from "./arrangement-polygons.json";
-
-const initialArrangement = Object.entries(initialArrangementRaw).reduce((acc, [key, val]) => {
-  acc[key] = { position: [val.pos[0], val.pos[1], 0] };
-  return acc;
-}, {} as any);
 
 const BOOK_COLORS: Record<string, string> = {};
 
