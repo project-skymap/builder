@@ -5,7 +5,6 @@ import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle } from "@
 import { StarMap, bibleToSceneModel } from "@project-skymap/library";
 import bible from "../public/bible.json";
 import initialArrangement from "./arrangement.json";
-import initialPolygons from "./arrangement-polygons.json";
 
 const BOOK_COLORS: Record<string, string> = {};
 
@@ -70,7 +69,6 @@ export default function Page() {
       data: bible,
       adapter: bibleToSceneModel,
       arrangement,
-      polygons: initialPolygons as Record<string, [number, number, number][]>,
       editable: isEditable,
       visuals: {
         colorBy: [
