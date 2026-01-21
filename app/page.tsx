@@ -46,6 +46,9 @@ export default function Page() {
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   const [arrangement, setArrangement] = useState<StarArrangement>(initialArrangement as StarArrangement);
   const [isEditable, setIsEditable] = useState(false);
+  const [showLabels, setShowLabels] = useState(true);
+  const [showLines, setShowLines] = useState(true);
+  const [showBoundaries, setShowBoundaries] = useState(true);
   const mapRef = useRef<StarMapHandle>(null);
 
   const handleArrangementChange = useCallback((newArr: StarArrangement) => {
@@ -70,6 +73,9 @@ export default function Page() {
       adapter: bibleToSceneModel,
       arrangement,
       editable: isEditable,
+      showLabels,
+      showConstellationLines: showLines,
+      showDivisionBoundaries: showBoundaries,
       visuals: {
         colorBy: [
           // Per-book colors (level 3)
@@ -89,7 +95,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable]
+    [focusNodeId, arrangement, isEditable, showLabels, showLines, showBoundaries]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -157,6 +163,21 @@ export default function Page() {
         >
             Reset Focus
         </button>
+
+        <div style={{ marginTop: 10 }}>
+            <label style={{ display: 'block', marginBottom: 5 }}>
+                <input type="checkbox" checked={showLabels} onChange={e => setShowLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
+                Show Labels
+            </label>
+            <label style={{ display: 'block', marginBottom: 5 }}>
+                <input type="checkbox" checked={showLines} onChange={e => setShowLines(e.target.checked)} style={{ marginRight: 5 }} /> 
+                Show Constellations
+            </label>
+            <label style={{ display: 'block' }}>
+                <input type="checkbox" checked={showBoundaries} onChange={e => setShowBoundaries(e.target.checked)} style={{ marginRight: 5 }} /> 
+                Show Division Borders
+            </label>
+        </div>
 
         <div style={{ marginTop: 20, borderTop: "1px solid #555", paddingTop: 10 }}>
             <button 
