@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useState, useRef } from "react";
-import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle } from "@project-skymap/library";
-import { StarMap, bibleToSceneModel } from "@project-skymap/library";
+import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle, BibleJSON } from "@project-skymap/library";
+import { StarMap, bibleToSceneModel, generateArrangement, defaultGenerateOptions } from "@project-skymap/library";
 import bible from "../public/bible.json";
 import initialArrangement from "./arrangement.json";
 
@@ -46,9 +46,12 @@ export default function Page() {
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   const [arrangement, setArrangement] = useState<StarArrangement>(initialArrangement as StarArrangement);
   const [isEditable, setIsEditable] = useState(false);
-  const [showLabels, setShowLabels] = useState(true);
-  const [showLines, setShowLines] = useState(true);
-  const [showBoundaries, setShowBoundaries] = useState(true);
+  const [showBookLabels, setShowBookLabels] = useState(false);
+  const [showDivisionLabels, setShowDivisionLabels] = useState(false);
+  const [showChapterLabels, setShowChapterLabels] = useState(false);
+  const [showLines, setShowLines] = useState(false);
+  const [showBoundaries, setShowBoundaries] = useState(false);
+  const [initialLon, setInitialLon] = useState(275);
   const mapRef = useRef<StarMapHandle>(null);
 
   const handleArrangementChange = useCallback((newArr: StarArrangement) => {
@@ -65,15 +68,26 @@ export default function Page() {
     alert("Full arrangement exported to console and clipboard!");
   }, []);
 
+  const handleGenerate = useCallback(() => {
+    // Generate with a random seed based on time to ensure variation
+    const seed = Date.now();
+    console.log("Generating arrangement with seed:", seed);
+    const newArrangement = generateArrangement(bible as BibleJSON, { ...defaultGenerateOptions, seed });
+    setArrangement(newArrangement);
+    alert(`Generated new galaxy arrangement! (Seed: ${seed})`);
+  }, []);
+
   const config = useMemo<StarMapConfig>(
     () => ({
       background: "#05060a",
-      camera: { fov: 80, z: 120 },
+      camera: { fov: 80, z: 120, lon: initialLon * Math.PI / 180 },
       data: bible,
       adapter: bibleToSceneModel,
       arrangement,
       editable: isEditable,
-      showLabels,
+      showBookLabels,
+      showDivisionLabels,
+      showChapterLabels,
       showConstellationLines: showLines,
       showDivisionBoundaries: showBoundaries,
       visuals: {
@@ -95,7 +109,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showLabels, showLines, showBoundaries]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showLines, showBoundaries, initialLon]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -166,8 +180,26 @@ export default function Page() {
 
         <div style={{ marginTop: 10 }}>
             <label style={{ display: 'block', marginBottom: 5 }}>
-                <input type="checkbox" checked={showLabels} onChange={e => setShowLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
-                Show Labels
+                <span style={{ marginRight: 5, fontSize: 12 }}>Rotation: {initialLon}°</span>
+                <input 
+                    type="range" 
+                    min="0" max="360" 
+                    value={initialLon} 
+                    onChange={e => setInitialLon(Number(e.target.value))} 
+                    style={{ verticalAlign: 'middle', width: 100 }}
+                />
+            </label>
+            <label style={{ display: 'block', marginBottom: 5 }}>
+                <input type="checkbox" checked={showBookLabels} onChange={e => setShowBookLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
+                Show Book Labels
+            </label>
+            <label style={{ display: 'block', marginBottom: 5 }}>
+                <input type="checkbox" checked={showDivisionLabels} onChange={e => setShowDivisionLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
+                Show Division Labels
+            </label>
+            <label style={{ display: 'block', marginBottom: 5 }}>
+                <input type="checkbox" checked={showChapterLabels} onChange={e => setShowChapterLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
+                Show Chapter Labels
             </label>
             <label style={{ display: 'block', marginBottom: 5 }}>
                 <input type="checkbox" checked={showLines} onChange={e => setShowLines(e.target.checked)} style={{ marginRight: 5 }} /> 
@@ -188,6 +220,12 @@ export default function Page() {
             </button>
             {isEditable && (
                 <div style={{ marginTop: 10 }}>
+                    <button 
+                        onClick={handleGenerate}
+                        style={{ padding: "5px 10px", cursor: "pointer", marginRight: 5, background: "#8b5cf6", color: "white", border: "none", borderRadius: 4 }}
+                    >
+                        Generate Galaxy
+                    </button>
                     <button 
                         onClick={handleExport}
                         style={{ padding: "5px 10px", cursor: "pointer" }}
