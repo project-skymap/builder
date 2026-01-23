@@ -21,6 +21,46 @@
         "minOpacity": 0.1,
         "maxOpacity": 0.1
       }
+    },
+    {
+      "id": "EXODUS",
+      "title": "Exodus",
+      "type": "book",
+      "image": "exodus.png",
+      "anchors": ["C:EXO:1", "C:EXO:40"],
+      "center": null,
+      "radius": 550,
+      "rotationDeg": 25,
+      "opacity": 0.1,
+      "blend": "additive",
+      "zBias": 2,
+      "fade": {
+        "zoomInStart": 1000,
+        "zoomInEnd": 1000,
+        "hoverBoost": 0.4,
+        "minOpacity": 0.1,
+        "maxOpacity": 0.1
+      }
+    },
+    {
+      "id": "LEVITICUS",
+      "title": "Leviticus",
+      "type": "book",
+      "image": "leviticus.png",
+      "anchors": ["C:LEV:1", "C:LEV:27"],
+      "center": null,
+      "radius": 425,
+      "rotationDeg": -5,
+      "opacity": 0.1,
+      "blend": "additive",
+      "zBias": 2,
+      "fade": {
+        "zoomInStart": 1000,
+        "zoomInEnd": 1000,
+        "hoverBoost": 0.4,
+        "minOpacity": 0.1,
+        "maxOpacity": 0.1
+      }
     }
   ]
 }

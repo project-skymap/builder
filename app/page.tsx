@@ -5,6 +5,7 @@ import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle, BibleJSO
 import { StarMap, bibleToSceneModel, generateArrangement, defaultGenerateOptions } from "@project-skymap/library";
 import bible from "../public/bible.json";
 import initialArrangement from "./arrangement.json";
+import groups from "./groups.json";
 
 const BOOK_COLORS: Record<string, string> = {};
 
@@ -44,15 +45,17 @@ const ANSWER = {
 
 export default function Page() {
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
-  const [arrangement, setArrangement] = useState<StarArrangement>(initialArrangement as StarArrangement);
+  const [arrangement, setArrangement] = useState<StarArrangement>(initialArrangement as unknown as StarArrangement);
   const [isEditable, setIsEditable] = useState(false);
   const [showBookLabels, setShowBookLabels] = useState(false);
   const [showDivisionLabels, setShowDivisionLabels] = useState(false);
   const [showChapterLabels, setShowChapterLabels] = useState(false);
+  const [showGroupLabels, setShowGroupLabels] = useState(false);
   const [showLines, setShowLines] = useState(false);
   const [showBoundaries, setShowBoundaries] = useState(false);
   const [initialLon, setInitialLon] = useState(275);
   const [showConstellationArt, setShowConstellationArt] = useState(true);
+  const [showBackdropStars, setShowBackdropStars] = useState(true);
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
   const mapRef = useRef<StarMapHandle>(null);
 
@@ -94,12 +97,15 @@ export default function Page() {
       adapter: bibleToSceneModel,
       arrangement,
       editable: isEditable,
+      groups: groups as any,
       showBookLabels,
       showDivisionLabels,
       showChapterLabels,
+      showGroupLabels,
       showConstellationLines: showLines,
       showDivisionBoundaries: showBoundaries,
       showConstellationArt,
+      showBackdropStars,
       constellations: constellationConfig,
       visuals: {
         colorBy: [
@@ -120,7 +126,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showLines, showBoundaries, showConstellationArt, constellationConfig, initialLon]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationConfig, initialLon]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -205,6 +211,10 @@ export default function Page() {
                 Show Book Labels
             </label>
             <label style={{ display: 'block', marginBottom: 5 }}>
+                <input type="checkbox" checked={showGroupLabels} onChange={e => setShowGroupLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
+                Show Group Labels
+            </label>
+            <label style={{ display: 'block', marginBottom: 5 }}>
                 <input type="checkbox" checked={showDivisionLabels} onChange={e => setShowDivisionLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
                 Show Division Labels
             </label>
@@ -220,9 +230,13 @@ export default function Page() {
                 <input type="checkbox" checked={showBoundaries} onChange={e => setShowBoundaries(e.target.checked)} style={{ marginRight: 5 }} /> 
                 Show Division Borders
             </label>
-            <label style={{ display: 'block' }}>
+            <label style={{ display: 'block', marginBottom: 5 }}>
                 <input type="checkbox" checked={showConstellationArt} onChange={e => setShowConstellationArt(e.target.checked)} style={{ marginRight: 5 }} /> 
                 Show Artwork
+            </label>
+            <label style={{ display: 'block' }}>
+                <input type="checkbox" checked={showBackdropStars} onChange={e => setShowBackdropStars(e.target.checked)} style={{ marginRight: 5 }} /> 
+                Show Background Stars
             </label>
         </div>
 
