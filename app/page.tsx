@@ -49,7 +49,7 @@ export default function Page() {
   const [isEditable, setIsEditable] = useState(false);
   const [showBookLabels, setShowBookLabels] = useState(false);
   const [showDivisionLabels, setShowDivisionLabels] = useState(false);
-  const [showChapterLabels, setShowChapterLabels] = useState(false);
+  const [showChapterLabels, setShowChapterLabels] = useState(true);
   const [showGroupLabels, setShowGroupLabels] = useState(false);
   const [showLines, setShowLines] = useState(false);
   const [showBoundaries, setShowBoundaries] = useState(false);
