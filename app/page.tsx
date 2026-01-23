@@ -56,6 +56,7 @@ export default function Page() {
   const [initialLon, setInitialLon] = useState(275);
   const [showConstellationArt, setShowConstellationArt] = useState(true);
   const [showBackdropStars, setShowBackdropStars] = useState(true);
+  const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
   const mapRef = useRef<StarMapHandle>(null);
 
@@ -106,6 +107,7 @@ export default function Page() {
       showDivisionBoundaries: showBoundaries,
       showConstellationArt,
       showBackdropStars,
+      showAtmosphere,
       constellations: constellationConfig,
       visuals: {
         colorBy: [
@@ -234,9 +236,13 @@ export default function Page() {
                 <input type="checkbox" checked={showConstellationArt} onChange={e => setShowConstellationArt(e.target.checked)} style={{ marginRight: 5 }} /> 
                 Show Artwork
             </label>
-            <label style={{ display: 'block' }}>
+            <label style={{ display: 'block', marginBottom: 5 }}>
                 <input type="checkbox" checked={showBackdropStars} onChange={e => setShowBackdropStars(e.target.checked)} style={{ marginRight: 5 }} /> 
                 Show Background Stars
+            </label>
+            <label style={{ display: 'block' }}>
+                <input type="checkbox" checked={showAtmosphere} onChange={e => setShowAtmosphere(e.target.checked)} style={{ marginRight: 5 }} /> 
+                Show Atmosphere
             </label>
         </div>
 
