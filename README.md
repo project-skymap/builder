@@ -34,3 +34,17 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Constellation Artwork
+
+To add constellation artwork:
+
+1.  **Images:** Place transparent PNG images in `public/constellations/art/`.
+2.  **Configuration:** Edit `public/constellations.json`.
+3.  **Schema:**
+    *   `id`: Unique ID (e.g., "GENESIS").
+    *   `image`: Filename of the image (e.g., "genesis.png").
+    *   `anchors`: Array of Node IDs (e.g., ["C:GEN:1", "C:GEN:50"]) to position the art.
+    *   `radius`: Size of the artwork (approximate sky units).
+    *   `rotationDeg`: Rotation in degrees.
+    *   `fade`: Control zoom visibility (`zoomInStart` = start fading in, `zoomInEnd` = fully visible).

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "atlasBasePath": "/constellations/art",
+  "constellations": [
+    {
+      "id": "GENESIS",
+      "title": "Genesis",
+      "type": "book",
+      "image": "genesis.png",
+      "anchors": ["C:GEN:1", "C:GEN:50"],
+      "center": null,
+      "radius": 600,
+      "rotationDeg": 10,
+      "opacity": 0.1,
+      "blend": "additive",
+      "zBias": 2,
+      "fade": {
+        "zoomInStart": 1000,
+        "zoomInEnd": 1000,
+        "hoverBoost": 0.4,
+        "minOpacity": 0.1,
+        "maxOpacity": 0.1
+      }
+    }
+  ]
+}

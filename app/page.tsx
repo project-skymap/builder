@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useRef } from "react";
+import { useCallback, useMemo, useState, useRef, useEffect } from "react";
 import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle, BibleJSON } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel, generateArrangement, defaultGenerateOptions } from "@project-skymap/library";
 import bible from "../public/bible.json";
@@ -52,7 +52,16 @@ export default function Page() {
   const [showLines, setShowLines] = useState(false);
   const [showBoundaries, setShowBoundaries] = useState(false);
   const [initialLon, setInitialLon] = useState(275);
+  const [showConstellationArt, setShowConstellationArt] = useState(true);
+  const [constellationConfig, setConstellationConfig] = useState<any>(null);
   const mapRef = useRef<StarMapHandle>(null);
+
+  useEffect(() => {
+    fetch("/constellations.json")
+      .then(res => res.json())
+      .then(data => setConstellationConfig(data))
+      .catch(err => console.error("Failed to load constellations:", err));
+  }, []);
 
   const handleArrangementChange = useCallback((newArr: StarArrangement) => {
     setArrangement(newArr);
@@ -90,6 +99,8 @@ export default function Page() {
       showChapterLabels,
       showConstellationLines: showLines,
       showDivisionBoundaries: showBoundaries,
+      showConstellationArt,
+      constellations: constellationConfig,
       visuals: {
         colorBy: [
           // Per-book colors (level 3)
@@ -109,7 +120,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showLines, showBoundaries, initialLon]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showLines, showBoundaries, showConstellationArt, constellationConfig, initialLon]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -205,9 +216,13 @@ export default function Page() {
                 <input type="checkbox" checked={showLines} onChange={e => setShowLines(e.target.checked)} style={{ marginRight: 5 }} /> 
                 Show Constellations
             </label>
-            <label style={{ display: 'block' }}>
+            <label style={{ display: 'block', marginBottom: 5 }}>
                 <input type="checkbox" checked={showBoundaries} onChange={e => setShowBoundaries(e.target.checked)} style={{ marginRight: 5 }} /> 
                 Show Division Borders
+            </label>
+            <label style={{ display: 'block' }}>
+                <input type="checkbox" checked={showConstellationArt} onChange={e => setShowConstellationArt(e.target.checked)} style={{ marginRight: 5 }} /> 
+                Show Artwork
             </label>
         </div>
 
