@@ -15,11 +15,11 @@
       "blend": "additive",
       "zBias": 2,
       "fade": {
-        "zoomInStart": 1000,
-        "zoomInEnd": 1000,
-        "hoverBoost": 0.4,
-        "minOpacity": 0.1,
-        "maxOpacity": 0.1
+        "zoomInStart": 110,
+        "zoomInEnd": 20,
+        "hoverBoost": 0.0,
+        "minOpacity": 0.05,
+        "maxOpacity": 0.4
       }
     },
     {
@@ -35,11 +35,11 @@
       "blend": "additive",
       "zBias": 2,
       "fade": {
-        "zoomInStart": 1000,
-        "zoomInEnd": 1000,
-        "hoverBoost": 0.4,
-        "minOpacity": 0.1,
-        "maxOpacity": 0.1
+        "zoomInStart": 110,
+        "zoomInEnd": 20,
+        "hoverBoost": 0.0,
+        "minOpacity": 0.05,
+        "maxOpacity": 0.4
       }
     },
     {
@@ -55,11 +55,11 @@
       "blend": "additive",
       "zBias": 2,
       "fade": {
-        "zoomInStart": 1000,
-        "zoomInEnd": 1000,
-        "hoverBoost": 0.4,
-        "minOpacity": 0.1,
-        "maxOpacity": 0.1
+        "zoomInStart": 110,
+        "zoomInEnd": 20,
+        "hoverBoost": 0.0,
+        "minOpacity": 0.05,
+        "maxOpacity": 0.4
       }
     }
   ]
