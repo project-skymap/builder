@@ -47,15 +47,17 @@ export default function Page() {
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   const [arrangement, setArrangement] = useState<StarArrangement>(initialArrangement as unknown as StarArrangement);
   const [isEditable, setIsEditable] = useState(false);
-  const [showBookLabels, setShowBookLabels] = useState(false);
+  const [showBookLabels, setShowBookLabels] = useState(true);
   const [showDivisionLabels, setShowDivisionLabels] = useState(false);
   const [showChapterLabels, setShowChapterLabels] = useState(true);
   const [showGroupLabels, setShowGroupLabels] = useState(false);
   const [showLines, setShowLines] = useState(false);
   const [showBoundaries, setShowBoundaries] = useState(false);
   const [initialLon, setInitialLon] = useState(275);
+  const [currentFov, setCurrentFov] = useState(80);
   const [showConstellationArt, setShowConstellationArt] = useState(true);
   const [showBackdropStars, setShowBackdropStars] = useState(true);
+  const [backdropStarsCount, setBackdropStarsCount] = useState(31000);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
   const mapRef = useRef<StarMapHandle>(null);
@@ -107,6 +109,7 @@ export default function Page() {
       showDivisionBoundaries: showBoundaries,
       showConstellationArt,
       showBackdropStars,
+      backdropStarsCount,
       showAtmosphere,
       constellations: constellationConfig,
       visuals: {
@@ -128,7 +131,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationConfig, initialLon]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, showBackdropStars, backdropStarsCount, constellationConfig, initialLon]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -228,11 +231,27 @@ export default function Page() {
         <div className="control-group"><label><span>Division Borders</span><input type="checkbox" checked={showBoundaries} onChange={e => setShowBoundaries(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Artwork</span><input type="checkbox" checked={showConstellationArt} onChange={e => setShowConstellationArt(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Backdrop Stars</span><input type="checkbox" checked={showBackdropStars} onChange={e => setShowBackdropStars(e.target.checked)} /></label></div>
+        {showBackdropStars && (
+            <div className="control-group" style={{ paddingLeft: 10 }}>
+                <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                    <span style={{ fontSize: '0.9em', color: '#ccc' }}>Count</span>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <span className="value-display" style={{ marginRight: 5, width: 40, textAlign: 'right' }}>{backdropStarsCount}</span>
+                        <input 
+                            type="range" 
+                            min="0" max="50000" step="1000"
+                            value={backdropStarsCount} 
+                            onChange={e => setBackdropStarsCount(Number(e.target.value))} 
+                        />
+                    </div>
+                </label>
+            </div>
+        )}
         <div className="control-group"><label><span>Atmosphere</span><input type="checkbox" checked={showAtmosphere} onChange={e => setShowAtmosphere(e.target.checked)} /></label></div>
 
         <div className="divider"></div>
         
-        <div className="status">FOV: 80°</div>
+        <div className="status">FOV: {currentFov.toFixed(1)}°</div>
         <div className="status" style={{ color: '#f4a' }}>Mode: Spherical</div>
 
         <div className="divider"></div>
@@ -271,6 +290,7 @@ export default function Page() {
         onSelect={handleSelect}
         onHover={handleHover}
         onArrangementChange={handleArrangementChange}
+        onFovChange={setCurrentFov}
       />
     </div>
   );
