@@ -185,94 +185,83 @@ export default function Page() {
         position: "relative"
       }}
     >
-      <div style={{ position: "absolute", top: 20, left: 20, zIndex: 10, background: "rgba(0,0,0,0.5)", padding: 10, borderRadius: 8 }}>
-        <p><strong>Goal:</strong> Find {ANSWER.book} {ANSWER.chapter}</p>
-        <p>1. Select "New Testament"</p>
-        <p>2. Select "Prophecy"</p>
-        <p>3. Select "Revelation"</p>
+      <div className="settings-panel">
+        <div className="header">Star Map Builder</div>
+        
+        <div style={{ marginBottom: 10, fontSize: 12, color: '#aaa' }}>
+            <strong style={{ color: '#fff' }}>Goal:</strong> Find {ANSWER.book} {ANSWER.chapter}
+            <div style={{ marginTop: 4 }}>
+               1. New Testament &gt; Prophecy<br/>
+               2. Revelation
+            </div>
+        </div>
+        
         <button 
             onClick={() => setFocusNodeId(undefined)}
-            style={{ marginTop: 10, padding: "5px 10px", cursor: "pointer" }}
+            style={{ marginBottom: 10 }}
         >
             Reset Focus
         </button>
 
-        <div style={{ marginTop: 10 }}>
-            <label style={{ display: 'block', marginBottom: 5 }}>
-                <span style={{ marginRight: 5, fontSize: 12 }}>Rotation: {initialLon}°</span>
-                <input 
-                    type="range" 
-                    min="0" max="360" 
-                    value={initialLon} 
-                    onChange={e => setInitialLon(Number(e.target.value))} 
-                    style={{ verticalAlign: 'middle', width: 100 }}
-                />
-            </label>
-            <label style={{ display: 'block', marginBottom: 5 }}>
-                <input type="checkbox" checked={showBookLabels} onChange={e => setShowBookLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
-                Show Book Labels
-            </label>
-            <label style={{ display: 'block', marginBottom: 5 }}>
-                <input type="checkbox" checked={showGroupLabels} onChange={e => setShowGroupLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
-                Show Group Labels
-            </label>
-            <label style={{ display: 'block', marginBottom: 5 }}>
-                <input type="checkbox" checked={showDivisionLabels} onChange={e => setShowDivisionLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
-                Show Division Labels
-            </label>
-            <label style={{ display: 'block', marginBottom: 5 }}>
-                <input type="checkbox" checked={showChapterLabels} onChange={e => setShowChapterLabels(e.target.checked)} style={{ marginRight: 5 }} /> 
-                Show Chapter Labels
-            </label>
-            <label style={{ display: 'block', marginBottom: 5 }}>
-                <input type="checkbox" checked={showLines} onChange={e => setShowLines(e.target.checked)} style={{ marginRight: 5 }} /> 
-                Show Constellations
-            </label>
-            <label style={{ display: 'block', marginBottom: 5 }}>
-                <input type="checkbox" checked={showBoundaries} onChange={e => setShowBoundaries(e.target.checked)} style={{ marginRight: 5 }} /> 
-                Show Division Borders
-            </label>
-            <label style={{ display: 'block', marginBottom: 5 }}>
-                <input type="checkbox" checked={showConstellationArt} onChange={e => setShowConstellationArt(e.target.checked)} style={{ marginRight: 5 }} /> 
-                Show Artwork
-            </label>
-            <label style={{ display: 'block', marginBottom: 5 }}>
-                <input type="checkbox" checked={showBackdropStars} onChange={e => setShowBackdropStars(e.target.checked)} style={{ marginRight: 5 }} /> 
-                Show Background Stars
-            </label>
-            <label style={{ display: 'block' }}>
-                <input type="checkbox" checked={showAtmosphere} onChange={e => setShowAtmosphere(e.target.checked)} style={{ marginRight: 5 }} /> 
-                Show Atmosphere
+        <div className="divider"></div>
+
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Rotation</span>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="value-display" style={{ marginRight: 5 }}>{initialLon}°</span>
+                    <input 
+                        type="range" 
+                        min="0" max="360" 
+                        value={initialLon} 
+                        onChange={e => setInitialLon(Number(e.target.value))} 
+                    />
+                </div>
             </label>
         </div>
 
-        <div style={{ marginTop: 20, borderTop: "1px solid #555", paddingTop: 10 }}>
-            <button 
-                onClick={() => setIsEditable(!isEditable)}
-                style={{ padding: "5px 10px", cursor: "pointer", background: isEditable ? "#ef4444" : "#3b82f6", color: "white", border: "none", borderRadius: 4 }}
-            >
-                {isEditable ? "Stop Editing" : "Edit Stars"}
-            </button>
-            {isEditable && (
-                <div style={{ marginTop: 10 }}>
-                    <button 
-                        onClick={handleGenerate}
-                        style={{ padding: "5px 10px", cursor: "pointer", marginRight: 5, background: "#8b5cf6", color: "white", border: "none", borderRadius: 4 }}
-                    >
-                        Generate Galaxy
-                    </button>
-                    <button 
-                        onClick={handleExport}
-                        style={{ padding: "5px 10px", cursor: "pointer" }}
-                    >
-                        Export JSON
-                    </button>
-                    <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 5 }}>
-                        Click Export, then overwrite <code>builder/app/arrangement.json</code> with the result.
-                    </p>
-                </div>
-            )}
-        </div>
+        <div className="control-group"><label><span>Book Labels</span><input type="checkbox" checked={showBookLabels} onChange={e => setShowBookLabels(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Group Labels</span><input type="checkbox" checked={showGroupLabels} onChange={e => setShowGroupLabels(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Division Labels</span><input type="checkbox" checked={showDivisionLabels} onChange={e => setShowDivisionLabels(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Chapter Labels</span><input type="checkbox" checked={showChapterLabels} onChange={e => setShowChapterLabels(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Constellations</span><input type="checkbox" checked={showLines} onChange={e => setShowLines(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Division Borders</span><input type="checkbox" checked={showBoundaries} onChange={e => setShowBoundaries(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Artwork</span><input type="checkbox" checked={showConstellationArt} onChange={e => setShowConstellationArt(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Backdrop Stars</span><input type="checkbox" checked={showBackdropStars} onChange={e => setShowBackdropStars(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Atmosphere</span><input type="checkbox" checked={showAtmosphere} onChange={e => setShowAtmosphere(e.target.checked)} /></label></div>
+
+        <div className="divider"></div>
+        
+        <div className="status">FOV: 80°</div>
+        <div className="status" style={{ color: '#f4a' }}>Mode: Spherical</div>
+
+        <div className="divider"></div>
+
+        <button 
+            onClick={() => setIsEditable(!isEditable)}
+            style={{ background: isEditable ? "#7f1d1d" : "#1e3a8a", borderColor: isEditable ? "#ef4444" : "#3b82f6" }}
+        >
+            {isEditable ? "Stop Editing" : "Edit Stars"}
+        </button>
+        
+        {isEditable && (
+            <div style={{ marginTop: 10 }}>
+                <button 
+                    onClick={handleGenerate}
+                    style={{ background: "#581c87", borderColor: "#8b5cf6" }}
+                >
+                    Generate Galaxy
+                </button>
+                <button 
+                    onClick={handleExport}
+                >
+                    Export JSON
+                </button>
+                <p className="sub-text">
+                    Click Export, then overwrite <code>builder/app/arrangement.json</code>.
+                </p>
+            </div>
+        )}
       </div>
 
       <StarMap

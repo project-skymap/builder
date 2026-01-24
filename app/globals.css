@@ -37,3 +37,118 @@ body {
   height: 100%;
   display: block;
 }
+
+/* --- Atmosphere Demo Styles Port --- */
+
+.settings-panel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(10, 15, 20, 0.95);
+  color: #ccc;
+  padding: 15px;
+  border-radius: 8px;
+  pointer-events: auto;
+  user-select: none;
+  font-size: 13px;
+  border: 1px solid #333;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  width: 260px; /* Slightly wider for the builder labels */
+  z-index: 50;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.settings-panel::-webkit-scrollbar {
+  width: 4px;
+}
+.settings-panel::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 2px;
+}
+
+.settings-panel .header {
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 8px;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+}
+
+.settings-panel .control-group {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-panel label {
+  cursor: pointer;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.settings-panel label:hover {
+  color: #fff;
+}
+
+.settings-panel input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #4fa;
+  margin-left: 8px;
+}
+
+.settings-panel input[type="range"] {
+  width: 100px;
+  cursor: pointer;
+  accent-color: #4fa;
+}
+
+.settings-panel .status {
+  color: #4fa;
+  font-size: 11px;
+  margin-top: 8px;
+  font-family: monospace;
+}
+
+.settings-panel .value-display {
+  font-family: monospace;
+  font-size: 11px;
+  color: #4fa;
+  width: 30px;
+  text-align: right;
+}
+
+.settings-panel button {
+  background: #2a3e5c;
+  color: #fff;
+  border: 1px solid #445;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s;
+  width: 100%;
+  margin-top: 5px;
+}
+
+.settings-panel button:hover {
+  background: #3b5278;
+}
+
+.settings-panel .divider {
+  border-top: 1px solid #333; 
+  margin: 10px 0;
+}
+
+.settings-panel .sub-text {
+  font-size: 11px; 
+  color: #666; 
+  margin-top: 5px;
+  line-height: 1.4;
+}
