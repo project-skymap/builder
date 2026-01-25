@@ -50,7 +50,7 @@ export default function Page() {
   const [showBookLabels, setShowBookLabels] = useState(true);
   const [showDivisionLabels, setShowDivisionLabels] = useState(false);
   const [showChapterLabels, setShowChapterLabels] = useState(true);
-  const [showGroupLabels, setShowGroupLabels] = useState(false);
+  const [showGroupLabels, setShowGroupLabels] = useState(true);
   const [showLines, setShowLines] = useState(false);
   const [showBoundaries, setShowBoundaries] = useState(false);
   const [initialLon, setInitialLon] = useState(275);

@@ -61,6 +61,26 @@
         "minOpacity": 0.05,
         "maxOpacity": 0.4
       }
+    },
+    {
+      "id": "NUMBERS",
+      "title": "Numbers",
+      "type": "book",
+      "image": "numbers.png",
+      "anchors": ["C:NUM:1", "C:NUM:36"],
+      "center": null,
+      "radius": 600,
+      "rotationDeg": -25,
+      "opacity": 0.2,
+      "blend": "additive",
+      "zBias": 2,
+      "fade": {
+        "zoomInStart": 110,
+        "zoomInEnd": 20,
+        "hoverBoost": 0.0,
+        "minOpacity": 0.20,
+        "maxOpacity": 0.6
+      }
     }
   ]
 }
