@@ -60,6 +60,7 @@ export default function Page() {
   const [backdropStarsCount, setBackdropStarsCount] = useState(31000);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
+  const [revealOrderEnabled, setRevealOrderEnabled] = useState(true);
   const mapRef = useRef<StarMapHandle>(null);
 
   useEffect(() => {
@@ -91,6 +92,11 @@ export default function Page() {
     setArrangement(newArrangement);
     alert(`Generated new galaxy arrangement! (Seed: ${seed})`);
   }, []);
+  
+  // Sync Reveal Order State
+  useEffect(() => {
+      mapRef.current?.setOrderRevealEnabled?.(revealOrderEnabled);
+  }, [revealOrderEnabled]);
 
   const config = useMemo<StarMapConfig>(
     () => ({
@@ -135,6 +141,15 @@ export default function Page() {
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
+    // Order Reveal Interaction
+    if (node && (node.level === 2 || node.level === 3)) {
+        const bookId = node.level === 2 ? node.id : node.parent!;
+        mapRef.current?.setFocusedBook(bookId);
+    } else {
+        mapRef.current?.setFocusedBook(null);
+    }
+    
+    // Existing Game Logic
     console.log("Selected node:", node);
 
     // Simulate "Is Correct?" logic
@@ -171,7 +186,18 @@ export default function Page() {
 
   const handleHover = useCallback((node?: SceneNode) => {
     if (node) {
-      // console.log("Hover node:", node);
+       // Order Reveal Interaction
+       if (node.level === 2 || node.level === 3) {
+           const bookId = node.level === 2 ? node.id : node.parent!;
+           mapRef.current?.setHoveredBook(bookId);
+       } else if (node.level === 2.5) {
+           // Group Label -> get parent book
+           mapRef.current?.setHoveredBook(node.parent!);
+       } else {
+           mapRef.current?.setHoveredBook(null);
+       }
+    } else {
+        mapRef.current?.setHoveredBook(null);
     }
   }, []);
 
@@ -200,7 +226,7 @@ export default function Page() {
         </div>
         
         <button 
-            onClick={() => setFocusNodeId(undefined)}
+            onClick={() => { setFocusNodeId(undefined); mapRef.current?.setFocusedBook(null); }}
             style={{ marginBottom: 10 }}
         >
             Reset Focus
@@ -223,6 +249,12 @@ export default function Page() {
             </label>
         </div>
 
+        <div className="control-group"><label><span>Order Reveal</span><input type="checkbox" checked={revealOrderEnabled} onChange={e => setRevealOrderEnabled(e.target.checked)} /></label></div>
+        {revealOrderEnabled && (
+            <div style={{ fontSize: 10, color: '#666', paddingLeft: 10, marginBottom: 5 }}>
+                Params: Amp 0.6, Dur 1.5s, Delay 40ms, Cooldown 2s
+            </div>
+        )}
         <div className="control-group"><label><span>Book Labels</span><input type="checkbox" checked={showBookLabels} onChange={e => setShowBookLabels(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Group Labels</span><input type="checkbox" checked={showGroupLabels} onChange={e => setShowGroupLabels(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Division Labels</span><input type="checkbox" checked={showDivisionLabels} onChange={e => setShowDivisionLabels(e.target.checked)} /></label></div>

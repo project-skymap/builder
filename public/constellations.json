@@ -102,6 +102,66 @@
         "maxOpacity": 0.6
       }
     },
+    {
+      "id": "JOSHUA",
+      "title": "Joshua",
+      "type": "book",
+      "image": "joshua.png",
+      "anchors": ["C:JOS:1", "C:JOS:24"],
+      "center": null,
+      "radius": 400,
+      "rotationDeg": 0,
+      "opacity": 0.2,
+      "blend": "additive",
+      "zBias": 2,
+      "fade": {
+        "zoomInStart": 110,
+        "zoomInEnd": 20,
+        "hoverBoost": 0.0,
+        "minOpacity": 0.20,
+        "maxOpacity": 0.6
+      }
+    },
+    {
+      "id": "JUDGES",
+      "title": "Judges",
+      "type": "book",
+      "image": "judges.png",
+      "anchors": ["C:JDG:1", "C:JDG:21"],
+      "center": null,
+      "radius": 380,
+      "rotationDeg": 45,
+      "opacity": 0.2,
+      "blend": "additive",
+      "zBias": 2,
+      "fade": {
+        "zoomInStart": 110,
+        "zoomInEnd": 20,
+        "hoverBoost": 0.0,
+        "minOpacity": 0.20,
+        "maxOpacity": 0.6
+      }
+    },
+    {
+      "id": "RUTH",
+      "title": "Ruth",
+      "type": "book",
+      "image": "ruth.png",
+      "anchors": ["C:RUT:1", "C:RUT:4"],
+      "center": null,
+      "radius": 180,
+      "rotationDeg": -20,
+      "opacity": 0.2,
+      "blend": "additive",
+      "zBias": 2,
+      "fade": {
+        "zoomInStart": 110,
+        "zoomInEnd": 20,
+        "hoverBoost": 0.0,
+        "minOpacity": 0.20,
+        "maxOpacity": 0.6
+      }
+    },
 
     {
       "id": "3JOHN",
