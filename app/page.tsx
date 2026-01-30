@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useRef, useEffect } from "react";
-import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle, BibleJSON } from "@project-skymap/library";
+import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle, BibleJSON, HierarchyFilter } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel, generateArrangement, defaultGenerateOptions } from "@project-skymap/library";
 import bible from "../public/bible.json";
 import initialArrangement from "./arrangement.json";
@@ -37,10 +37,10 @@ bible.testaments.forEach(t =>
 // Define a "Correct Answer" for testing
 const ANSWER = {
   testament: "New",
-  division: "Gospels",
-  book: "John",
-  bookKey: "JHN",
-  chapter: 3
+  division: "Paul's Letters",
+  book: "Romans",
+  bookKey: "ROM",
+  chapter: 8
 };
 
 export default function Page() {
@@ -61,6 +61,10 @@ export default function Page() {
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
   const [revealOrderEnabled, setRevealOrderEnabled] = useState(true);
+  const [selectedGuess, setSelectedGuess] = useState<SceneNode | null>(null);
+  const [hierarchyFilter, setHierarchyFilter] = useState<HierarchyFilter | null>(null);
+  const [guessHistory, setGuessHistory] = useState<{node: SceneNode, result: string}[]>([]);
+  const [solved, setSolved] = useState(false);
   const mapRef = useRef<StarMapHandle>(null);
 
   useEffect(() => {
@@ -97,6 +101,11 @@ export default function Page() {
   useEffect(() => {
       mapRef.current?.setOrderRevealEnabled?.(revealOrderEnabled);
   }, [revealOrderEnabled]);
+
+  // Sync Hierarchy Filter
+  useEffect(() => {
+      mapRef.current?.setHierarchyFilter?.(hierarchyFilter);
+  }, [hierarchyFilter]);
 
   const config = useMemo<StarMapConfig>(
     () => ({
@@ -148,41 +157,55 @@ export default function Page() {
     } else {
         mapRef.current?.setFocusedBook(null);
     }
-    
-    // Existing Game Logic
-    console.log("Selected node:", node);
 
-    // Simulate "Is Correct?" logic
-    // Level 0: Testament
-    if (node.level === 0) {
-      if (node.label === ANSWER.testament) {
-        setFocusNodeId(node.id);
-      }
+    // Select chapter stars as guess candidates
+    if (!solved && node.level === 3) {
+        setSelectedGuess(node);
     }
-    // Level 1: Division
-    else if (node.level === 1) {
-      if (node.label === ANSWER.division) {
-        setFocusNodeId(node.id);
-      }
+  }, [solved]);
+
+  const handleSubmitGuess = useCallback(() => {
+    if (!selectedGuess || solved) return;
+    const meta = selectedGuess.meta as { testament: string; division: string; bookKey: string; chapter: number };
+
+    // Check exact match
+    if (meta.bookKey === ANSWER.bookKey && meta.chapter === ANSWER.chapter) {
+        setSolved(true);
+        setFocusNodeId(selectedGuess.id);
+        setGuessHistory(prev => [...prev, { node: selectedGuess, result: "Correct!" }]);
+        setSelectedGuess(null);
+        return;
     }
-    // Level 2: Book
-    else if (node.level === 2) {
-      const { bookKey } = node.meta as { bookKey: string };
-      if (bookKey === ANSWER.bookKey) {
-        setFocusNodeId(node.id);
-      }
+
+    // Build filter from hierarchy match
+    const newFilter: HierarchyFilter = {};
+    let matchLevel = "";
+
+    if (meta.testament === ANSWER.testament) {
+        newFilter.testament = ANSWER.testament;
+        matchLevel = "testament";
+        if (meta.division === ANSWER.division) {
+            newFilter.division = ANSWER.division;
+            matchLevel = "division";
+            if (meta.bookKey === ANSWER.bookKey) {
+                newFilter.bookKey = ANSWER.bookKey;
+                matchLevel = "book";
+            }
+        }
     }
-    // Level 3: Chapter
-    else if (node.level === 3) {
-      const { bookKey, chapter } = node.meta as { bookKey: string; chapter: number };
-      if (bookKey === ANSWER.bookKey && chapter === ANSWER.chapter) {
-        setFocusNodeId(node.id); // Focus on the winning chapter
-      } else if (bookKey === ANSWER.bookKey) {
-         // Correct book, wrong chapter -> Focus the book if not already
-         setFocusNodeId(`B:${bookKey}`);
-      }
+
+    const result = matchLevel
+        ? `Wrong — correct ${matchLevel}`
+        : "Wrong — no match";
+
+    // Merge with existing filter (only narrows, never widens)
+    if (matchLevel) {
+        setHierarchyFilter(prev => prev ? { ...prev, ...newFilter } : newFilter);
     }
-  }, []);
+
+    setGuessHistory(prev => [...prev, { node: selectedGuess, result }]);
+    setSelectedGuess(null);
+  }, [selectedGuess, solved]);
 
   const handleHover = useCallback((node?: SceneNode) => {
     if (node) {
@@ -219,18 +242,69 @@ export default function Page() {
         
         <div style={{ marginBottom: 10, fontSize: 12, color: '#aaa' }}>
             <strong style={{ color: '#fff' }}>Goal:</strong> Find {ANSWER.book} {ANSWER.chapter}
-            <div style={{ marginTop: 4 }}>
-               1. New Testament &gt; Prophecy<br/>
-               2. Revelation
-            </div>
         </div>
-        
-        <button 
-            onClick={() => { setFocusNodeId(undefined); mapRef.current?.setFocusedBook(null); }}
-            style={{ marginBottom: 10 }}
-        >
-            Reset Focus
-        </button>
+
+        {solved && (
+            <div style={{ marginBottom: 10, padding: 8, background: '#166534', border: '1px solid #22c55e', borderRadius: 4, fontSize: 13, fontWeight: 'bold', color: '#bbf7d0' }}>
+                Correct! {ANSWER.book} {ANSWER.chapter} found in {guessHistory.length} {guessHistory.length === 1 ? 'guess' : 'guesses'}.
+            </div>
+        )}
+
+        {!solved && selectedGuess && (
+            <div style={{ marginBottom: 10, fontSize: 12 }}>
+                <strong style={{ color: '#fbbf24' }}>Selected:</strong>{' '}
+                <span style={{ color: '#fff' }}>{selectedGuess.label}</span>
+            </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            <button
+                onClick={handleSubmitGuess}
+                disabled={!selectedGuess || solved}
+                style={{
+                    flex: 1,
+                    background: selectedGuess && !solved ? '#b45309' : '#374151',
+                    borderColor: selectedGuess && !solved ? '#f59e0b' : '#6b7280',
+                    opacity: selectedGuess && !solved ? 1 : 0.5
+                }}
+            >
+                Submit Guess
+            </button>
+            <button
+                onClick={() => {
+                    setFocusNodeId(undefined);
+                    setSelectedGuess(null);
+                    setHierarchyFilter(null);
+                    setGuessHistory([]);
+                    setSolved(false);
+                    mapRef.current?.setFocusedBook(null);
+                    mapRef.current?.setHierarchyFilter?.(null);
+                }}
+                style={{ flex: 1 }}
+            >
+                Reset
+            </button>
+        </div>
+
+        {guessHistory.length > 0 && (
+            <div style={{ marginBottom: 10, fontSize: 11, maxHeight: 120, overflowY: 'auto' }}>
+                <strong style={{ color: '#94a3b8', display: 'block', marginBottom: 4 }}>Guesses:</strong>
+                {guessHistory.map((g, i) => (
+                    <div key={i} style={{ color: g.result === "Correct!" ? '#4ade80' : '#fb923c', marginBottom: 2 }}>
+                        {i + 1}. {g.node.label} — {g.result}
+                    </div>
+                ))}
+            </div>
+        )}
+
+        {hierarchyFilter && !solved && (
+            <div style={{ marginBottom: 10, fontSize: 11, color: '#818cf8' }}>
+                <strong>Narrowed to:</strong>
+                {hierarchyFilter.testament && <div>Testament: {hierarchyFilter.testament}</div>}
+                {hierarchyFilter.division && <div>Division: {hierarchyFilter.division}</div>}
+                {hierarchyFilter.bookKey && <div>Book: {hierarchyFilter.bookKey}</div>}
+            </div>
+        )}
 
         <div className="divider"></div>
 
