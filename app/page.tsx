@@ -6,6 +6,7 @@ import { StarMap, bibleToSceneModel, generateArrangement, defaultGenerateOptions
 import bible from "../public/bible.json";
 import initialArrangement from "./arrangement.json";
 import groups from "./groups.json";
+import labelColors from "../public/colours.json";
 
 const BOOK_COLORS: Record<string, string> = {};
 
@@ -116,6 +117,7 @@ export default function Page() {
       arrangement,
       editable: isEditable,
       groups: groups as any,
+      labelColors: labelColors as Record<string, string>,
       showBookLabels,
       showDivisionLabels,
       showChapterLabels,
