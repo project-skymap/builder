@@ -168,6 +168,9 @@ export default function Page() {
     if (!selectedGuess || solved) return;
     const meta = selectedGuess.meta as { testament: string; division: string; bookKey: string; chapter: number };
 
+    // Zoom into the guessed star
+    mapRef.current?.flyTo(selectedGuess.id, 10);
+
     // Check exact match
     if (meta.bookKey === ANSWER.bookKey && meta.chapter === ANSWER.chapter) {
         setSolved(true);
