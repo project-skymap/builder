@@ -60,6 +60,7 @@ export default function Page() {
   const [showBackdropStars, setShowBackdropStars] = useState(true);
   const [backdropStarsCount, setBackdropStarsCount] = useState(31000);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
+  const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
   const [revealOrderEnabled, setRevealOrderEnabled] = useState(true);
   const [selectedGuess, setSelectedGuess] = useState<SceneNode | null>(null);
@@ -128,6 +129,7 @@ export default function Page() {
       showBackdropStars,
       backdropStarsCount,
       showAtmosphere,
+      projection,
       constellations: constellationConfig,
       visuals: {
         colorBy: [
@@ -148,7 +150,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, showBackdropStars, backdropStarsCount, constellationConfig, initialLon]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, showBackdropStars, backdropStarsCount, constellationConfig, initialLon, projection]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -359,6 +361,7 @@ export default function Page() {
             </div>
         )}
         <div className="control-group"><label><span>Atmosphere</span><input type="checkbox" checked={showAtmosphere} onChange={e => setShowAtmosphere(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Projection</span><select value={projection} onChange={e => setProjection(e.target.value as any)} style={{ background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '2px 4px', fontSize: 12 }}><option value="blended">Blended (Auto)</option><option value="perspective">Perspective</option><option value="stereographic">Stereographic</option></select></label></div>
 
         <div className="divider"></div>
         
