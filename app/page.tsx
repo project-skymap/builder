@@ -55,7 +55,7 @@ export default function Page() {
   const [showLines, setShowLines] = useState(false);
   const [showBoundaries, setShowBoundaries] = useState(false);
   const [initialLon, setInitialLon] = useState(275);
-  const [currentFov, setCurrentFov] = useState(80);
+  const [currentFov, setCurrentFov] = useState(50);
   const [showConstellationArt, setShowConstellationArt] = useState(true);
   const [showBackdropStars, setShowBackdropStars] = useState(true);
   const [backdropStarsCount, setBackdropStarsCount] = useState(31000);
@@ -112,7 +112,7 @@ export default function Page() {
   const config = useMemo<StarMapConfig>(
     () => ({
       background: "#05060a",
-      camera: { fov: 80, z: 120, lon: initialLon * Math.PI / 180 },
+      camera: { lon: initialLon * Math.PI / 180 },
       data: bible,
       adapter: bibleToSceneModel,
       arrangement,
@@ -131,6 +131,7 @@ export default function Page() {
       showAtmosphere,
       projection,
       constellations: constellationConfig,
+      fitProjection: true,
       visuals: {
         colorBy: [
           // Per-book colors (level 3)
@@ -366,7 +367,13 @@ export default function Page() {
         <div className="divider"></div>
         
         <div className="status">FOV: {currentFov.toFixed(1)}°</div>
-        <div className="status" style={{ color: '#f4a' }}>Mode: Spherical</div>
+        <div className="status" style={{ color: '#f4a' }}>
+            Mode: {
+                projection === 'blended' ? 'Blended (Auto)' :
+                projection === 'perspective' ? 'Perspective' :
+                'Stereographic'
+            }
+        </div>
 
         <div className="divider"></div>
 
