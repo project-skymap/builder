@@ -145,7 +145,7 @@ export default function Page() {
         ],
         sizeBy: [{ when: { level: 3 }, field: "weight", scale: [2.0, 5.0] }]
       },
-      layout: { mode: "spherical", radius: 500, chapterRingSpacing: 40 },
+      layout: { mode: "spherical", radius: 500, chapterRingSpacing: 40, algorithm: "phyllotaxis" },
       focus: {
         nodeId: focusNodeId,
         animate: true
