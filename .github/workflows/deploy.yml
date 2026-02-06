@@ -23,16 +23,12 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Build Library
-        run: npm run build -w library
+        run: npm install
 
       - name: Build Builder
-        run: npm run build -w builder
+        run: npm run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
