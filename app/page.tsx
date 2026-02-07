@@ -68,8 +68,28 @@ export default function Page() {
   const [guessHistory, setGuessHistory] = useState<{node: SceneNode, result: string}[]>([]);
   const [solved, setSolved] = useState(false);
   const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [longPressInfo, setLongPressInfo] = useState<{ node: SceneNode | null; x: number; y: number } | null>(null);
+  const [showGestureHints, setShowGestureHints] = useState(false);
   const touchStartY = useRef<number | null>(null);
   const mapRef = useRef<StarMapHandle>(null);
+
+  // Show gesture hints on first mobile visit
+  useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const hasSeenHints = localStorage.getItem('skymap-gesture-hints-seen');
+    if (isMobile && !hasSeenHints) {
+      setShowGestureHints(true);
+    }
+  }, []);
+
+  const dismissGestureHints = useCallback(() => {
+    setShowGestureHints(false);
+    localStorage.setItem('skymap-gesture-hints-seen', 'true');
+  }, []);
+
+  const handleLongPress = useCallback((node: SceneNode | null, x: number, y: number) => {
+    setLongPressInfo({ node, x, y });
+  }, []);
 
   useEffect(() => {
     fetch("/constellations.json")
@@ -434,7 +454,125 @@ export default function Page() {
         onHover={handleHover}
         onArrangementChange={handleArrangementChange}
         onFovChange={setCurrentFov}
+        onLongPress={handleLongPress}
       />
+
+      {/* Long-press info popup */}
+      {longPressInfo && (
+        <div
+          className="long-press-popup"
+          style={{
+            position: 'fixed',
+            left: Math.min(longPressInfo.x, window.innerWidth - 220),
+            top: Math.max(longPressInfo.y - 120, 10),
+            background: 'rgba(10, 15, 25, 0.95)',
+            border: '1px solid #4fa',
+            borderRadius: 8,
+            padding: 12,
+            minWidth: 200,
+            maxWidth: 280,
+            zIndex: 200,
+            color: '#fff',
+            fontSize: 13,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          }}
+          onClick={() => setLongPressInfo(null)}
+        >
+          {longPressInfo.node ? (
+            <>
+              <div style={{ fontWeight: 'bold', marginBottom: 6, color: '#4fa' }}>
+                {longPressInfo.node.label}
+              </div>
+              {longPressInfo.node.meta && (
+                <div style={{ fontSize: 11, color: '#aaa', lineHeight: 1.5 }}>
+                  {(longPressInfo.node.meta as any).testament && (
+                    <div>Testament: {(longPressInfo.node.meta as any).testament}</div>
+                  )}
+                  {(longPressInfo.node.meta as any).division && (
+                    <div>Division: {(longPressInfo.node.meta as any).division}</div>
+                  )}
+                  {(longPressInfo.node.meta as any).book && (
+                    <div>Book: {(longPressInfo.node.meta as any).book}</div>
+                  )}
+                  {(longPressInfo.node.meta as any).chapter && (
+                    <div>Chapter: {(longPressInfo.node.meta as any).chapter}</div>
+                  )}
+                </div>
+              )}
+              <div style={{ fontSize: 10, color: '#666', marginTop: 8 }}>
+                Tap to dismiss
+              </div>
+            </>
+          ) : (
+            <div style={{ color: '#888' }}>No star selected</div>
+          )}
+        </div>
+      )}
+
+      {/* Gesture hints overlay */}
+      {showGestureHints && (
+        <div
+          className="gesture-hints-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            zIndex: 300,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            color: '#fff',
+          }}
+          onClick={dismissGestureHints}
+        >
+          <div style={{ maxWidth: 320, textAlign: 'center' }}>
+            <h2 style={{ fontSize: 22, marginBottom: 24, color: '#4fa' }}>
+              Touch Controls
+            </h2>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>👆</div>
+              <div style={{ fontSize: 14, color: '#ccc' }}>
+                <strong>Drag</strong> to rotate the sky
+              </div>
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🤏</div>
+              <div style={{ fontSize: 14, color: '#ccc' }}>
+                <strong>Pinch</strong> to zoom in/out
+              </div>
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>👆👆</div>
+              <div style={{ fontSize: 14, color: '#ccc' }}>
+                <strong>Double-tap</strong> to fly to a star
+              </div>
+            </div>
+            <div style={{ marginBottom: 30 }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>👆⏱️</div>
+              <div style={{ fontSize: 14, color: '#ccc' }}>
+                <strong>Long-press</strong> for star info
+              </div>
+            </div>
+            <button
+              onClick={dismissGestureHints}
+              style={{
+                background: '#4fa',
+                color: '#000',
+                border: 'none',
+                padding: '12px 32px',
+                borderRadius: 8,
+                fontSize: 16,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+              }}
+            >
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
