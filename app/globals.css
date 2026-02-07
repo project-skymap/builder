@@ -69,9 +69,49 @@ canvas {
   overflow-y: auto;
 }
 
-/* Hide settings panel on mobile */
+/* Mobile bottom sheet */
 @media (max-width: 768px) {
   .settings-panel {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 70vh;
+    border-radius: 16px 16px 0 0;
+    transform: translateY(calc(100% - 60px)); /* Peek height */
+    transition: transform 0.3s ease-out;
+    z-index: 100;
+  }
+
+  .settings-panel.expanded {
+    transform: translateY(0);
+  }
+
+  .settings-panel .drag-handle {
+    display: flex;
+    justify-content: center;
+    padding: 12px;
+    cursor: grab;
+  }
+
+  .settings-panel .drag-handle::before {
+    content: '';
+    width: 40px;
+    height: 4px;
+    background: #666;
+    border-radius: 2px;
+  }
+
+  .settings-panel .header {
+    display: none; /* Hide "Star Map Builder" title on mobile */
+  }
+}
+
+/* Desktop: hide drag handle */
+@media (min-width: 769px) {
+  .settings-panel .drag-handle {
     display: none;
   }
 }

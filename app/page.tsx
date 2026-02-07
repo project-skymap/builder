@@ -67,6 +67,8 @@ export default function Page() {
   const [hierarchyFilter, setHierarchyFilter] = useState<HierarchyFilter | null>(null);
   const [guessHistory, setGuessHistory] = useState<{node: SceneNode, result: string}[]>([]);
   const [solved, setSolved] = useState(false);
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+  const touchStartY = useRef<number | null>(null);
   const mapRef = useRef<StarMapHandle>(null);
 
   useEffect(() => {
@@ -245,7 +247,27 @@ export default function Page() {
         position: "relative"
       }}
     >
-      <div className="settings-panel">
+      <div
+        className={`settings-panel ${sheetExpanded ? 'expanded' : ''}`}
+        onTouchStart={(e) => {
+          touchStartY.current = e.touches[0].clientY;
+        }}
+        onTouchEnd={(e) => {
+          if (touchStartY.current === null) return;
+          const touchEndY = e.changedTouches[0].clientY;
+          const deltaY = touchStartY.current - touchEndY;
+          if (deltaY > 50) {
+            setSheetExpanded(true);
+          } else if (deltaY < -50) {
+            setSheetExpanded(false);
+          }
+          touchStartY.current = null;
+        }}
+      >
+        <div
+          className="drag-handle"
+          onClick={() => setSheetExpanded(!sheetExpanded)}
+        />
         <div className="header">Star Map Builder</div>
         
         <div style={{ marginBottom: 10, fontSize: 12, color: '#aaa' }}>
