@@ -93,9 +93,29 @@ export default function Page() {
 
   useEffect(() => {
     fetch("/constellations.json")
-      .then(res => res.json())
-      .then(data => setConstellationConfig(data))
-      .catch(err => console.error("Failed to load constellations:", err));
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        console.log("[Constellations] Loaded config with", data.constellations?.length, "items");
+        setConstellationConfig(data);
+      })
+      .catch(err => {
+        console.error("[Constellations] Failed to load config:", err);
+        // Try alternative path in case of base path issues
+        fetch("./constellations.json")
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data) {
+              console.log("[Constellations] Loaded from relative path");
+              setConstellationConfig(data);
+            }
+          })
+          .catch(() => {});
+      });
   }, []);
 
   const handleArrangementChange = useCallback((newArr: StarArrangement) => {
