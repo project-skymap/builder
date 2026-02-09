@@ -92,7 +92,7 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    fetch("/constellations.json")
+    fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/constellations.json`)
       .then(res => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);

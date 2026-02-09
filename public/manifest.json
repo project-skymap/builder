@@ -2,7 +2,7 @@
   "name": "Project Sky Map",
   "short_name": "Sky Map",
   "description": "An interactive night-sky visualisation of the Bible",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#05060a",
   "theme_color": "#05060a",
