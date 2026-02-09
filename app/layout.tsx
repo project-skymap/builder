@@ -12,15 +12,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-
 export const metadata: Metadata = {
   title: "Project Sky Map",
   description: "An interactive night-sky visualisation of the Bible",
-  manifest: `${basePath}/manifest.json`,
+  manifest: "/manifest.json",
   icons: {
-    icon: `${basePath}/icons/icon.svg`,
-    apple: `${basePath}/icons/icon.svg`,
+    icon: "/icons/icon.svg",
+    apple: "/icons/icon.svg",
   },
   appleWebApp: {
     capable: true,
@@ -47,8 +45,7 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                  var basePath = '${process.env.NEXT_PUBLIC_BASE_PATH || ''}';
-                  navigator.serviceWorker.register(basePath + '/sw.js')
+                  navigator.serviceWorker.register('/sw.js')
                     .then(reg => console.log('SW registered:', reg.scope))
                     .catch(err => console.log('SW registration failed:', err));
                 });

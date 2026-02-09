@@ -92,8 +92,7 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-    fetch(`${basePath}/constellations.json`)
+    fetch("/constellations.json")
       .then(res => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -102,10 +101,6 @@ export default function Page() {
       })
       .then(data => {
         console.log("[Constellations] Loaded config with", data.constellations?.length, "items");
-        // Fix the atlas path for GitHub Pages
-        if (basePath && data.atlasBasePath) {
-          data.atlasBasePath = basePath + data.atlasBasePath;
-        }
         setConstellationConfig(data);
       })
       .catch(err => {

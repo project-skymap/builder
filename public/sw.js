@@ -1,10 +1,10 @@
 // Service Worker for Project Sky Map
 const CACHE_NAME = 'skymap-v2'; // Bumped version to force refresh
 
-// Assets to cache on install - use relative paths for GitHub Pages compatibility
+// Assets to cache on install
 const PRECACHE_ASSETS = [
-  './',
-  './manifest.json',
+  '/',
+  '/manifest.json',
 ];
 
 // Install event - cache core assets
