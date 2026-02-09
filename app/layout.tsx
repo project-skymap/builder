@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Project Sky Map",
   description: "An interactive night-sky visualisation of the Bible",
-  manifest: "/manifest.json",
+  manifest: `${process.env.NEXT_PUBLIC_BASE_PATH}/manifest.json`,
   icons: {
     icon: "/icons/icon.svg",
     apple: "/icons/icon.svg",

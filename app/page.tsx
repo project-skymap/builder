@@ -101,6 +101,9 @@ export default function Page() {
       })
       .then(data => {
         console.log("[Constellations] Loaded config with", data.constellations?.length, "items");
+        if (data.atlasBasePath) {
+          data.atlasBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH || ""}${data.atlasBasePath}`;
+        }
         setConstellationConfig(data);
       })
       .catch(err => {
