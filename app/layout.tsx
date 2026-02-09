@@ -12,10 +12,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+
 export const metadata: Metadata = {
   title: "Project Sky Map",
   description: "An interactive night-sky visualisation of the Bible",
-  manifest: "/manifest.json",
+  manifest: `${basePath}/manifest.json`,
+  icons: {
+    icon: `${basePath}/icons/icon.svg`,
+    apple: `${basePath}/icons/icon.svg`,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -36,14 +42,13 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Sky Map" />
-        <link rel="apple-touch-icon" href="/icons/icon.svg" />
-        <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js')
+                  var basePath = '${process.env.NEXT_PUBLIC_BASE_PATH || ''}';
+                  navigator.serviceWorker.register(basePath + '/sw.js')
                     .then(reg => console.log('SW registered:', reg.scope))
                     .catch(err => console.log('SW registration failed:', err));
                 });

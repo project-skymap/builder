@@ -92,7 +92,8 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    fetch("/constellations.json")
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+    fetch(`${basePath}/constellations.json`)
       .then(res => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -101,20 +102,14 @@ export default function Page() {
       })
       .then(data => {
         console.log("[Constellations] Loaded config with", data.constellations?.length, "items");
+        // Fix the atlas path for GitHub Pages
+        if (basePath && data.atlasBasePath) {
+          data.atlasBasePath = basePath + data.atlasBasePath;
+        }
         setConstellationConfig(data);
       })
       .catch(err => {
         console.error("[Constellations] Failed to load config:", err);
-        // Try alternative path in case of base path issues
-        fetch("./constellations.json")
-          .then(res => res.ok ? res.json() : null)
-          .then(data => {
-            if (data) {
-              console.log("[Constellations] Loaded from relative path");
-              setConstellationConfig(data);
-            }
-          })
-          .catch(() => {});
       });
   }, []);
 

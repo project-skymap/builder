@@ -1,21 +1,20 @@
 // Service Worker for Project Sky Map
-const CACHE_NAME = 'skymap-v1';
+const CACHE_NAME = 'skymap-v2'; // Bumped version to force refresh
 
-// Assets to cache on install
+// Assets to cache on install - use relative paths for GitHub Pages compatibility
 const PRECACHE_ASSETS = [
-  '/',
-  '/manifest.json',
-  '/bible.json',
-  '/constellations.json',
-  '/colours.json',
-  '/icons/icon.svg',
+  './',
+  './manifest.json',
 ];
 
 // Install event - cache core assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
+      // Use individual adds so one failure doesn't break everything
+      return Promise.allSettled(
+        PRECACHE_ASSETS.map(url => cache.add(url).catch(e => console.warn('SW precache failed:', url, e)))
+      );
     })
   );
   self.skipWaiting();
