@@ -1,0 +1,7 @@
+{
+  "fps_mean_min_delta_pct": -10,
+  "frame_ms_mean_max_delta_pct": 12,
+  "render_ms_mean_max_delta_pct": 20,
+  "update_ms_mean_max_delta_pct": 25,
+  "require_debug_metrics": true
+}

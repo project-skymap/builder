@@ -5,10 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "NEXT_PUBLIC_BASE_PATH=/builder next build",
-    "start": "next start"
+    "start": "next start",
+    "telemetry:compare": "node scripts/compare-telemetry.js",
+    "telemetry:guard": "node scripts/check-telemetry-thresholds.js",
+    "telemetry:e2e": "node scripts/run-telemetry-scenarios.js"
   },
   "dependencies": {
-    "@project-skymap/library": "*",
+    "@project-skymap/library": "file:../library",
     "next": "16.0.10",
     "react": "19.2.1",
     "react-dom": "19.2.1",
@@ -19,6 +22,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@playwright/test": "^1.56.1",
     "baseline-browser-mapping": "^2.9.19",
     "eslint": "^9",
     "eslint-config-next": "16.0.10",
