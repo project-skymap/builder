@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState, useRef, useEffect } from "react";
 import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle, BibleJSON, HierarchyFilter } from "@project-skymap/library";
-import { StarMap, bibleToSceneModel, createBibleTileStreaming, generateArrangement, defaultGenerateOptions } from "@project-skymap/library";
+import { StarMap, bibleToSceneModel, generateArrangement, defaultGenerateOptions } from "@project-skymap/library";
 import bible from "../public/bible.json";
 import initialArrangement from "./arrangement.json";
 import groups from "./groups.json";
@@ -61,11 +61,6 @@ export default function Page() {
   const [backdropStarsCount, setBackdropStarsCount] = useState(31000);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
-  const [useEngineNext, setUseEngineNext] = useState(true);
-  const [useBibleTileStreaming, setUseBibleTileStreaming] = useState(true);
-  const [showTelemetry, setShowTelemetry] = useState(true);
-  const [telemetryRecording, setTelemetryRecording] = useState(false);
-  const [telemetrySessionName, setTelemetrySessionName] = useState("");
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
   const [revealOrderEnabled, setRevealOrderEnabled] = useState(true);
   const [selectedGuess, setSelectedGuess] = useState<SceneNode | null>(null);
@@ -77,30 +72,6 @@ export default function Page() {
   const [showGestureHints, setShowGestureHints] = useState(false);
   const touchStartY = useRef<number | null>(null);
   const mapRef = useRef<StarMapHandle>(null);
-  const frameCountRef = useRef(0);
-  const frameDeltaSumRef = useRef(0);
-  const lastFrameTsRef = useRef(0);
-  const sampleStartTsRef = useRef(0);
-  const telemetryStartedAtRef = useRef(0);
-  const telemetrySamplesRef = useRef<Array<Record<string, unknown>>>([]);
-  const telemetryEventsRef = useRef<Array<Record<string, unknown>>>([]);
-  const [telemetry, setTelemetry] = useState<{
-    fps: number;
-    frameMs: number;
-    sampleMs: number;
-    debug?: Record<string, unknown>;
-  }>({ fps: 0, frameMs: 0, sampleMs: 0, debug: undefined });
-
-  const addTelemetryEvent = useCallback((type: string, payload?: Record<string, unknown>) => {
-    if (!telemetryRecording) return;
-    const now = performance.now();
-    const started = telemetryStartedAtRef.current || now;
-    telemetryEventsRef.current.push({
-      tMs: now - started,
-      type,
-      ...(payload ?? {}),
-    });
-  }, [telemetryRecording]);
 
   // Show gesture hints on first mobile visit
   useEffect(() => {
@@ -173,145 +144,12 @@ export default function Page() {
       mapRef.current?.setHierarchyFilter?.(hierarchyFilter);
   }, [hierarchyFilter]);
 
-  useEffect(() => {
-    let raf = 0;
-    function step(ts: number) {
-      if (lastFrameTsRef.current > 0) {
-        frameDeltaSumRef.current += Math.max(0, ts - lastFrameTsRef.current);
-      }
-      frameCountRef.current += 1;
-      if (sampleStartTsRef.current === 0) sampleStartTsRef.current = ts;
-      lastFrameTsRef.current = ts;
-      raf = requestAnimationFrame(step);
-    }
-    raf = requestAnimationFrame(step);
-    return () => {
-      cancelAnimationFrame(raf);
-      frameCountRef.current = 0;
-      frameDeltaSumRef.current = 0;
-      lastFrameTsRef.current = 0;
-      sampleStartTsRef.current = 0;
-    };
-  }, []);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      const now = performance.now();
-      const elapsed = Math.max(1, now - (sampleStartTsRef.current || now));
-      const frames = frameCountRef.current;
-      const fps = frames > 0 ? (frames * 1000) / elapsed : 0;
-      const frameMs = frames > 0 ? frameDeltaSumRef.current / frames : 0;
-      const debug = mapRef.current?.getDebugState?.();
-      setTelemetry({
-        fps,
-        frameMs,
-        sampleMs: elapsed,
-        debug,
-      });
-      if (telemetryRecording) {
-        const started = telemetryStartedAtRef.current || now;
-        telemetrySamplesRef.current.push({
-          tMs: now - started,
-          fps,
-          frameMs,
-          debug: debug ?? null,
-        });
-      }
-      frameCountRef.current = 0;
-      frameDeltaSumRef.current = 0;
-      sampleStartTsRef.current = now;
-    }, 1000);
-    return () => clearInterval(id);
-  }, [telemetryRecording]);
-
-  const startTelemetryRecording = useCallback(() => {
-    const now = performance.now();
-    telemetryStartedAtRef.current = now;
-    telemetrySamplesRef.current = [];
-    telemetryEventsRef.current = [];
-    setTelemetryRecording(true);
-  }, []);
-
-  const stopTelemetryRecording = useCallback(() => {
-    setTelemetryRecording(false);
-  }, []);
-
-  const clearTelemetryRecording = useCallback(() => {
-    telemetrySamplesRef.current = [];
-    telemetryEventsRef.current = [];
-    telemetryStartedAtRef.current = telemetryStartedAtRef.current || performance.now();
-  }, []);
-
-  const buildTelemetryPayload = useCallback(() => {
-    const started = telemetryStartedAtRef.current || performance.now();
-    return {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      sessionName: telemetrySessionName || undefined,
-      engineVariant: useEngineNext ? "next" : "legacy",
-      tileStreamingEnabled: useEngineNext && useBibleTileStreaming,
-      startedAtMs: started,
-      sampleCount: telemetrySamplesRef.current.length,
-      eventCount: telemetryEventsRef.current.length,
-      samples: telemetrySamplesRef.current,
-      events: telemetryEventsRef.current,
-    };
-  }, [telemetrySessionName, useBibleTileStreaming, useEngineNext]);
-
-  const exportTelemetryRecording = useCallback(() => {
-    const payload = buildTelemetryPayload();
-    const json = JSON.stringify(payload, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const name = telemetrySessionName.trim() ? telemetrySessionName.trim().replace(/\s+/g, "-") : "session";
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `telemetry-${name}-${stamp}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }, [buildTelemetryPayload, telemetrySessionName]);
-
-  useEffect(() => {
-    (window as any).__skymapTelemetryExport = () => buildTelemetryPayload();
-    (window as any).__skymapTelemetryStart = () => startTelemetryRecording();
-    (window as any).__skymapTelemetryStop = () => stopTelemetryRecording();
-    (window as any).__skymapTelemetryClear = () => clearTelemetryRecording();
-    (window as any).__skymapGetDebugState = () => mapRef.current?.getDebugState?.() ?? null;
-    return () => {
-      delete (window as any).__skymapTelemetryExport;
-      delete (window as any).__skymapTelemetryStart;
-      delete (window as any).__skymapTelemetryStop;
-      delete (window as any).__skymapTelemetryClear;
-      delete (window as any).__skymapGetDebugState;
-    };
-  }, [buildTelemetryPayload, clearTelemetryRecording, startTelemetryRecording, stopTelemetryRecording]);
-
-  const sceneModel = useMemo(() => bibleToSceneModel(bible as BibleJSON), []);
-
-  const bibleTileStreaming = useMemo(() => {
-    if (!useEngineNext || !useBibleTileStreaming) return undefined;
-    return createBibleTileStreaming(sceneModel, arrangement, {
-      maxLoadedTiles: 28,
-      maxConcurrentLoads: 4,
-      transitionFrames: 0,
-      selector: {
-        maxSelectedTiles: 8,
-        maxDepth: 4,
-        refinementFovDeg: 58,
-      },
-    });
-  }, [useEngineNext, useBibleTileStreaming, sceneModel, arrangement]);
-
   const config = useMemo<StarMapConfig>(
     () => ({
       background: "#05060a",
       camera: { lon: initialLon * Math.PI / 180 },
       data: bible,
       adapter: bibleToSceneModel,
-      model: sceneModel,
       arrangement,
       editable: isEditable,
       groups: groups as any,
@@ -327,8 +165,6 @@ export default function Page() {
       backdropStarsCount,
       showAtmosphere,
       projection,
-      engineVariant: useEngineNext ? "next" : "legacy",
-      tileStreaming: bibleTileStreaming,
       constellations: constellationConfig,
       fitProjection: true,
       visuals: {
@@ -350,7 +186,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, showBackdropStars, backdropStarsCount, constellationConfig, initialLon, projection, useEngineNext, bibleTileStreaming, sceneModel]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, showBackdropStars, backdropStarsCount, constellationConfig, initialLon, projection]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -377,7 +213,6 @@ export default function Page() {
 
     // Check exact match
     if (meta.bookKey === ANSWER.bookKey && meta.chapter === ANSWER.chapter) {
-        addTelemetryEvent("guess_submit", { nodeId: selectedGuess.id, result: "correct" });
         setSolved(true);
         setFocusNodeId(selectedGuess.id);
         setGuessHistory(prev => [...prev, { node: selectedGuess, result: "Correct!" }]);
@@ -405,7 +240,6 @@ export default function Page() {
     const result = matchLevel
         ? `Wrong — correct ${matchLevel}`
         : "Wrong — no match";
-    addTelemetryEvent("guess_submit", { nodeId: selectedGuess.id, result, matchLevel: matchLevel || null });
 
     // Merge with existing filter (only narrows, never widens)
     if (matchLevel) {
@@ -414,7 +248,7 @@ export default function Page() {
 
     setGuessHistory(prev => [...prev, { node: selectedGuess, result }]);
     setSelectedGuess(null);
-  }, [addTelemetryEvent, selectedGuess, solved]);
+  }, [selectedGuess, solved]);
 
   const handleHover = useCallback((node?: SceneNode) => {
     if (node) {
@@ -432,17 +266,6 @@ export default function Page() {
         mapRef.current?.setHoveredBook(null);
     }
   }, []);
-
-  useEffect(() => {
-    addTelemetryEvent("toggle_engine_next", { value: useEngineNext });
-  }, [addTelemetryEvent, useEngineNext]);
-
-  useEffect(() => {
-    addTelemetryEvent("toggle_tile_streaming", { value: useBibleTileStreaming });
-  }, [addTelemetryEvent, useBibleTileStreaming]);
-
-  const debugAny = telemetry.debug as Record<string, any> | undefined;
-  const tileDebug = debugAny?.tile as Record<string, any> | undefined;
 
   return (
     <div
@@ -595,50 +418,6 @@ export default function Page() {
         )}
         <div className="control-group"><label><span>Atmosphere</span><input type="checkbox" checked={showAtmosphere} onChange={e => setShowAtmosphere(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Projection</span><select value={projection} onChange={e => setProjection(e.target.value as any)} style={{ background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '2px 4px', fontSize: 12 }}><option value="blended">Blended (Auto)</option><option value="perspective">Perspective</option><option value="stereographic">Stereographic</option></select></label></div>
-        <div className="control-group"><label><span>Engine Next</span><input data-testid="toggle-engine-next" type="checkbox" checked={useEngineNext} onChange={e => setUseEngineNext(e.target.checked)} /></label></div>
-        <div className="control-group">
-          <label>
-            <span>Bible Tile Streaming</span>
-            <input
-              data-testid="toggle-tile-streaming"
-              type="checkbox"
-              checked={useBibleTileStreaming}
-              onChange={e => setUseBibleTileStreaming(e.target.checked)}
-              disabled={!useEngineNext}
-            />
-          </label>
-        </div>
-        <div className="control-group"><label><span>Telemetry Overlay</span><input type="checkbox" checked={showTelemetry} onChange={e => setShowTelemetry(e.target.checked)} /></label></div>
-        <div className="control-group">
-          <label style={{ justifyContent: "space-between", width: "100%" }}>
-            <span>Telemetry Session</span>
-            <input
-              data-testid="input-telemetry-session-name"
-              type="text"
-              value={telemetrySessionName}
-              onChange={(e) => setTelemetrySessionName(e.target.value)}
-              placeholder="optional name"
-              style={{ background: "#1a1a2e", color: "#fff", border: "1px solid #333", borderRadius: 4, padding: "2px 6px", fontSize: 11, width: 120 }}
-            />
-          </label>
-        </div>
-        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-          {!telemetryRecording ? (
-            <button data-testid="btn-telemetry-record" onClick={startTelemetryRecording} style={{ flex: 1, background: "#14532d", borderColor: "#22c55e" }}>
-              Record
-            </button>
-          ) : (
-            <button data-testid="btn-telemetry-stop" onClick={stopTelemetryRecording} style={{ flex: 1, background: "#7f1d1d", borderColor: "#ef4444" }}>
-              Stop
-            </button>
-          )}
-          <button data-testid="btn-telemetry-clear" onClick={clearTelemetryRecording} style={{ flex: 1 }}>
-            Clear
-          </button>
-          <button data-testid="btn-telemetry-export" onClick={exportTelemetryRecording} style={{ flex: 1 }}>
-            Export
-          </button>
-        </div>
 
         <div className="divider"></div>
         
@@ -682,67 +461,14 @@ export default function Page() {
 
       <StarMap
         ref={mapRef}
-        testId="starmap-canvas"
         className="starmap"
         config={config}
-        onSelect={(node) => {
-          addTelemetryEvent("select", {
-            nodeId: node.id,
-            level: node.level,
-            parent: node.parent ?? null,
-          });
-          handleSelect(node);
-        }}
+        onSelect={handleSelect}
         onHover={handleHover}
         onArrangementChange={handleArrangementChange}
         onFovChange={setCurrentFov}
-        onLongPress={(node, x, y) => {
-          addTelemetryEvent("long_press", {
-            nodeId: node?.id ?? null,
-            x,
-            y,
-          });
-          handleLongPress(node, x, y);
-        }}
+        onLongPress={handleLongPress}
       />
-
-      {showTelemetry && (
-        <div
-          style={{
-            position: "fixed",
-            right: 12,
-            top: 12,
-            zIndex: 250,
-            minWidth: 250,
-            maxWidth: 360,
-            background: "rgba(7, 11, 20, 0.86)",
-            border: "1px solid rgba(106, 176, 255, 0.45)",
-            borderRadius: 8,
-            color: "#dbeafe",
-            padding: "10px 12px",
-            fontSize: 11,
-            lineHeight: 1.45,
-            backdropFilter: "blur(6px)",
-            pointerEvents: "none",
-          }}
-        >
-          <div style={{ fontWeight: 700, marginBottom: 4, color: "#93c5fd" }}>Telemetry</div>
-          <div>Recording: {telemetryRecording ? "yes" : "no"} | Samples: {telemetrySamplesRef.current.length} | Events: {telemetryEventsRef.current.length}</div>
-          <div>Engine: {String((telemetry.debug?.engine as string | undefined) ?? (useEngineNext ? "next" : "legacy"))}</div>
-          <div>FPS: {telemetry.fps.toFixed(1)} | Frame: {telemetry.frameMs.toFixed(2)}ms</div>
-          <div>FOV: {Number((telemetry.debug?.fovDeg as number | undefined) ?? currentFov).toFixed(2)}</div>
-          <div>Yaw/Pitch: {Number((telemetry.debug?.yawRad as number | undefined) ?? 0).toFixed(3)} / {Number((telemetry.debug?.pitchRad as number | undefined) ?? 0).toFixed(3)}</div>
-          {tileDebug && (
-            <div>
-              Tiles: {tileDebug.activeCount}/{tileDebug.loadedCount}
-              {" "}Q:{tileDebug.queueCount} IF:{tileDebug.inFlightCount}
-            </div>
-          )}
-          {typeof telemetry.debug?.renderMs === "number" && typeof telemetry.debug?.updateMs === "number" && (
-            <div>Core update/render: {(telemetry.debug.updateMs as number).toFixed(2)} / {(telemetry.debug.renderMs as number).toFixed(2)} ms</div>
-          )}
-        </div>
-      )}
 
       {/* Long-press info popup */}
       {longPressInfo && (
