@@ -58,7 +58,7 @@ export default function Page() {
   const [currentFov, setCurrentFov] = useState(50);
   const [showConstellationArt, setShowConstellationArt] = useState(true);
   const [showBackdropStars, setShowBackdropStars] = useState(true);
-  const [backdropStarsCount, setBackdropStarsCount] = useState(31000);
+  const [backdropStarsCount, setBackdropStarsCount] = useState(5000);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
