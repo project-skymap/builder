@@ -35,7 +35,7 @@
         "C:EXO:40"
       ],
       "center": null,
-      "radius": 1315.19,
+      "radius": 1000.19,
       "rotationDeg": 55,
       "opacity": 0.1,
       "blend": "additive",
@@ -81,7 +81,7 @@
         "C:NUM:36"
       ],
       "center": null,
-      "radius": 1355.76,
+      "radius": 1000.76,
       "rotationDeg": -20,
       "opacity": 0.1,
       "blend": "additive",
@@ -151,7 +151,7 @@
       ],
       "center": null,
       "radius": 1149.28,
-      "rotationDeg": 25,
+      "rotationDeg": 100,
       "opacity": 0.1,
       "blend": "additive",
       "zBias": 2,
@@ -311,7 +311,7 @@
         "C:2CH:36"
       ],
       "center": null,
-      "radius": 1641.66,
+      "radius": 850.66,
       "rotationDeg": -30,
       "opacity": 0.1,
       "blend": "additive",
@@ -357,8 +357,8 @@
         "C:NEH:13"
       ],
       "center": null,
-      "radius": 1002.31,
-      "rotationDeg": -8,
+      "radius": 500.31,
+      "rotationDeg": 125,
       "opacity": 0.1,
       "blend": "additive",
       "zBias": 2,
@@ -427,7 +427,7 @@
       ],
       "center": null,
       "radius": 2241.71,
-      "rotationDeg": 10,
+      "rotationDeg": -90,
       "opacity": 0.1,
       "blend": "additive",
       "zBias": 2,
@@ -909,7 +909,7 @@
         "C:MAT:28"
       ],
       "center": null,
-      "radius": 1426.98,
+      "radius": 1250.98,
       "rotationDeg": -10,
       "opacity": 0.1,
       "blend": "additive",
@@ -932,7 +932,7 @@
         "C:MRK:16"
       ],
       "center": null,
-      "radius": 1067.56,
+      "radius": 900.56,
       "rotationDeg": 170,
       "opacity": 0.1,
       "blend": "additive",
@@ -955,7 +955,7 @@
         "C:LUK:24"
       ],
       "center": null,
-      "radius": 1333.6,
+      "radius": 1175.6,
       "rotationDeg": 0,
       "opacity": 0.1,
       "blend": "additive",
@@ -978,7 +978,7 @@
         "C:JHN:21"
       ],
       "center": null,
-      "radius": 1304.02,
+      "radius": 1074.02,
       "rotationDeg": 8,
       "opacity": 0.1,
       "blend": "additive",
@@ -1001,7 +1001,7 @@
         "C:ACT:28"
       ],
       "center": null,
-      "radius": 1530.91,
+      "radius": 1250.91,
       "rotationDeg": 210,
       "opacity": 0.1,
       "blend": "additive",
@@ -1024,7 +1024,7 @@
         "C:ROM:16"
       ],
       "center": null,
-      "radius": 1011.83,
+      "radius": 650.83,
       "rotationDeg": -5,
       "opacity": 0.1,
       "blend": "additive",
