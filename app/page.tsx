@@ -57,11 +57,11 @@ export default function Page() {
   const [initialLon, setInitialLon] = useState(275);
   const [currentFov, setCurrentFov] = useState(50);
   const [showConstellationArt, setShowConstellationArt] = useState(true);
-  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(1.0);
+  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(25);
   const [showBackdropStars, setShowBackdropStars] = useState(true);
   const [backdropStarsCount, setBackdropStarsCount] = useState(5000);
-  const [starSizeExponent, setStarSizeExponent] = useState(2.8);
-  const [starSizeScale, setStarSizeScale] = useState(1.0);
+  const [starSizeExponent, setStarSizeExponent] = useState(4.0);
+  const [starSizeScale, setStarSizeScale] = useState(6.0);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
@@ -411,14 +411,14 @@ export default function Page() {
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <input
                         type="number"
-                        min="0" max="10" step="0.1"
+                        min="0" max="300" step="1"
                         value={constellationBaseOpacity}
                         onChange={e => setConstellationBaseOpacity(Number(e.target.value))}
                         style={{ width: 48, background: "#1a1a2e", color: "#fff", border: "1px solid #333", borderRadius: 4, padding: "1px 4px", fontSize: 11, textAlign: "right" }}
                     />
                     <input
                         type="range"
-                        min="0" max="10" step="0.1"
+                        min="0" max="300" step="1"
                         value={constellationBaseOpacity}
                         onChange={e => setConstellationBaseOpacity(Number(e.target.value))}
                     />
