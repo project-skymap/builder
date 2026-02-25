@@ -1231,7 +1231,7 @@
         "C:1TI:6"
       ],
       "center": null,
-      "radius": 548.63,
+      "radius": 300.63,
       "rotationDeg": -5,
       "opacity": 0.1,
       "blend": "additive",
@@ -1254,7 +1254,7 @@
         "C:2TI:4"
       ],
       "center": null,
-      "radius": 545.33,
+      "radius": 280.33,
       "rotationDeg": 30,
       "opacity": 0.1,
       "blend": "additive",
@@ -1324,7 +1324,7 @@
       ],
       "center": null,
       "radius": 700.78,
-      "rotationDeg": -12,
+      "rotationDeg": 115,
       "opacity": 0.1,
       "blend": "additive",
       "zBias": 2,
