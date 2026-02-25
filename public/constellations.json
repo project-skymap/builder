@@ -14,7 +14,7 @@
       "center": null,
       "radius": 1525.36,
       "rotationDeg": 60,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -37,7 +37,7 @@
       "center": null,
       "radius": 1000.19,
       "rotationDeg": 55,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -60,7 +60,7 @@
       "center": null,
       "radius": 1106.77,
       "rotationDeg": 15,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -83,7 +83,7 @@
       "center": null,
       "radius": 1000.76,
       "rotationDeg": -20,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -106,7 +106,7 @@
       "center": null,
       "radius": 1452.73,
       "rotationDeg": 5,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -129,7 +129,7 @@
       "center": null,
       "radius": 1185.88,
       "rotationDeg": -15,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -152,7 +152,7 @@
       "center": null,
       "radius": 1149.28,
       "rotationDeg": 100,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -175,7 +175,7 @@
       "center": null,
       "radius": 432.5,
       "rotationDeg": -10,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -198,7 +198,7 @@
       "center": null,
       "radius": 1316.28,
       "rotationDeg": 30,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -221,7 +221,7 @@
       "center": null,
       "radius": 995.52,
       "rotationDeg": -25,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -244,7 +244,7 @@
       "center": null,
       "radius": 1079.36,
       "rotationDeg": 10,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -267,7 +267,7 @@
       "center": null,
       "radius": 1237.87,
       "rotationDeg": -15,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -290,7 +290,7 @@
       "center": null,
       "radius": 1159.61,
       "rotationDeg": 20,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -313,7 +313,7 @@
       "center": null,
       "radius": 850.66,
       "rotationDeg": -30,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -336,7 +336,7 @@
       "center": null,
       "radius": 656.27,
       "rotationDeg": 192,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -359,7 +359,7 @@
       "center": null,
       "radius": 500.31,
       "rotationDeg": 125,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -382,7 +382,7 @@
       "center": null,
       "radius": 568.2,
       "rotationDeg": 140,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -405,7 +405,7 @@
       "center": null,
       "radius": 1505.06,
       "rotationDeg": 15,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -428,7 +428,7 @@
       "center": null,
       "radius": 2241.71,
       "rotationDeg": -90,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -451,7 +451,7 @@
       "center": null,
       "radius": 1399.66,
       "rotationDeg": 198,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -474,7 +474,7 @@
       "center": null,
       "radius": 689.09,
       "rotationDeg": -12,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -497,7 +497,7 @@
       "center": null,
       "radius": 500.26,
       "rotationDeg": 35,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -520,7 +520,7 @@
       "center": null,
       "radius": 1800.46,
       "rotationDeg": -40,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -543,7 +543,7 @@
       "center": null,
       "radius": 1451.35,
       "rotationDeg": 225,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -566,7 +566,7 @@
       "center": null,
       "radius": 614.95,
       "rotationDeg": 152,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -589,7 +589,7 @@
       "center": null,
       "radius": 1396.18,
       "rotationDeg": 22,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -612,7 +612,7 @@
       "center": null,
       "radius": 898.96,
       "rotationDeg": -42,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -635,7 +635,7 @@
       "center": null,
       "radius": 320.88,
       "rotationDeg": 40,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -658,7 +658,7 @@
       "center": null,
       "radius": 411.26,
       "rotationDeg": -38,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -681,7 +681,7 @@
       "center": null,
       "radius": 400.22,
       "rotationDeg": 28,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -704,7 +704,7 @@
       "center": null,
       "radius": 248.18,
       "rotationDeg": -45,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -727,7 +727,7 @@
       "center": null,
       "radius": 381.05,
       "rotationDeg": 38,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -750,7 +750,7 @@
       "center": null,
       "radius": 450.68,
       "rotationDeg": -32,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -773,7 +773,7 @@
       "center": null,
       "radius": 275.95,
       "rotationDeg": 26,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -796,7 +796,7 @@
       "center": null,
       "radius": 372.73,
       "rotationDeg": -24,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -819,7 +819,7 @@
       "center": null,
       "radius": 281.51,
       "rotationDeg": 33,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -842,7 +842,7 @@
       "center": null,
       "radius": 345.08,
       "rotationDeg": -18,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -865,7 +865,7 @@
       "center": null,
       "radius": 599.06,
       "rotationDeg": 20,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -888,7 +888,7 @@
       "center": null,
       "radius": 337.61,
       "rotationDeg": -33,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -911,7 +911,7 @@
       "center": null,
       "radius": 1250.98,
       "rotationDeg": 80,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -934,7 +934,7 @@
       "center": null,
       "radius": 900.56,
       "rotationDeg": 60,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -957,7 +957,7 @@
       "center": null,
       "radius": 1175.6,
       "rotationDeg": -90,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -980,7 +980,7 @@
       "center": null,
       "radius": 1074.02,
       "rotationDeg": -15,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1003,7 +1003,7 @@
       "center": null,
       "radius": 1250.91,
       "rotationDeg": 170,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1026,7 +1026,7 @@
       "center": null,
       "radius": 650.83,
       "rotationDeg": -5,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1049,7 +1049,7 @@
       "center": null,
       "radius": 750.34,
       "rotationDeg": 10,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1072,7 +1072,7 @@
       "center": null,
       "radius": 500.6,
       "rotationDeg": -15,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1095,7 +1095,7 @@
       "center": null,
       "radius": 572.18,
       "rotationDeg": 25,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1118,7 +1118,7 @@
       "center": null,
       "radius": 524.64,
       "rotationDeg": -30,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1141,7 +1141,7 @@
       "center": null,
       "radius": 418.2,
       "rotationDeg": 5,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1164,7 +1164,7 @@
       "center": null,
       "radius": 384.79,
       "rotationDeg": 40,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1187,7 +1187,7 @@
       "center": null,
       "radius": 395.63,
       "rotationDeg": -25,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1210,7 +1210,7 @@
       "center": null,
       "radius": 343.88,
       "rotationDeg": 15,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1233,7 +1233,7 @@
       "center": null,
       "radius": 300.63,
       "rotationDeg": -5,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1256,7 +1256,7 @@
       "center": null,
       "radius": 280.33,
       "rotationDeg": 30,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1279,7 +1279,7 @@
       "center": null,
       "radius": 278.81,
       "rotationDeg": -35,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1302,7 +1302,7 @@
       "center": null,
       "radius": 188.81,
       "rotationDeg": 20,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1325,7 +1325,7 @@
       "center": null,
       "radius": 700.78,
       "rotationDeg": 115,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1348,7 +1348,7 @@
       "center": null,
       "radius": 392.44,
       "rotationDeg": 5,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1371,7 +1371,7 @@
       "center": null,
       "radius": 419.36,
       "rotationDeg": -28,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1394,7 +1394,7 @@
       "center": null,
       "radius": 368.26,
       "rotationDeg": 18,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1417,7 +1417,7 @@
       "center": null,
       "radius": 387.44,
       "rotationDeg": 0,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1440,7 +1440,7 @@
       "center": null,
       "radius": 137.03,
       "rotationDeg": -40,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1463,7 +1463,7 @@
       "center": null,
       "radius": 146.26,
       "rotationDeg": 40,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1486,7 +1486,7 @@
       "center": null,
       "radius": 188.81,
       "rotationDeg": -10,
-      "opacity": 0.1,
+      "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -1509,7 +1509,7 @@
       "center": null,
       "radius": 950,
       "rotationDeg": 100,
-      "opacity": 0.2,
+      "opacity": 0.02,
       "blend": "additive",
       "zBias": 2,
       "fade": {

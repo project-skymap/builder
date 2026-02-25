@@ -57,8 +57,11 @@ export default function Page() {
   const [initialLon, setInitialLon] = useState(275);
   const [currentFov, setCurrentFov] = useState(50);
   const [showConstellationArt, setShowConstellationArt] = useState(true);
+  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(1.0);
   const [showBackdropStars, setShowBackdropStars] = useState(true);
   const [backdropStarsCount, setBackdropStarsCount] = useState(5000);
+  const [starSizeExponent, setStarSizeExponent] = useState(2.8);
+  const [starSizeScale, setStarSizeScale] = useState(1.0);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
@@ -161,8 +164,11 @@ export default function Page() {
       showConstellationLines: showLines,
       showDivisionBoundaries: showBoundaries,
       showConstellationArt,
+      constellationBaseOpacity,
       showBackdropStars,
       backdropStarsCount,
+      starSizeExponent,
+      starSizeScale,
       showAtmosphere,
       projection,
       constellations: constellationConfig,
@@ -186,7 +192,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, showBackdropStars, backdropStarsCount, constellationConfig, initialLon, projection]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, starSizeExponent, starSizeScale, constellationConfig, initialLon, projection]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -399,6 +405,26 @@ export default function Page() {
         <div className="control-group"><label><span>Constellations</span><input type="checkbox" checked={showLines} onChange={e => setShowLines(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Division Borders</span><input type="checkbox" checked={showBoundaries} onChange={e => setShowBoundaries(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Artwork</span><input type="checkbox" checked={showConstellationArt} onChange={e => setShowConstellationArt(e.target.checked)} /></label></div>
+        <div className="control-group" style={{ paddingLeft: 10 }}>
+            <label style={{ justifyContent: "space-between", width: "100%" }}>
+                <span style={{ fontSize: "0.9em", color: "#ccc" }}>Artwork Opacity</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input
+                        type="number"
+                        min="0" max="10" step="0.1"
+                        value={constellationBaseOpacity}
+                        onChange={e => setConstellationBaseOpacity(Number(e.target.value))}
+                        style={{ width: 48, background: "#1a1a2e", color: "#fff", border: "1px solid #333", borderRadius: 4, padding: "1px 4px", fontSize: 11, textAlign: "right" }}
+                    />
+                    <input
+                        type="range"
+                        min="0" max="10" step="0.1"
+                        value={constellationBaseOpacity}
+                        onChange={e => setConstellationBaseOpacity(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
         <div className="control-group"><label><span>Backdrop Stars</span><input type="checkbox" checked={showBackdropStars} onChange={e => setShowBackdropStars(e.target.checked)} /></label></div>
         {showBackdropStars && (
             <div className="control-group" style={{ paddingLeft: 10 }}>
@@ -417,6 +443,46 @@ export default function Page() {
             </div>
         )}
         <div className="control-group"><label><span>Atmosphere</span><input type="checkbox" checked={showAtmosphere} onChange={e => setShowAtmosphere(e.target.checked)} /></label></div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Star Size Curve</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="1.0" max="100" step="0.1"
+                        value={starSizeExponent}
+                        onChange={e => setStarSizeExponent(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="1.0" max="100" step="0.1"
+                        value={starSizeExponent}
+                        onChange={e => setStarSizeExponent(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Star Size</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="0.1" max="10" step="0.05"
+                        value={starSizeScale}
+                        onChange={e => setStarSizeScale(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="0.1" max="10" step="0.05"
+                        value={starSizeScale}
+                        onChange={e => setStarSizeScale(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
         <div className="control-group"><label><span>Projection</span><select value={projection} onChange={e => setProjection(e.target.value as any)} style={{ background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '2px 4px', fontSize: 12 }}><option value="blended">Blended (Auto)</option><option value="perspective">Perspective</option><option value="stereographic">Stereographic</option></select></label></div>
 
         <div className="divider"></div>
