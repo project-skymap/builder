@@ -1047,7 +1047,7 @@
         "C:1CO:16"
       ],
       "center": null,
-      "radius": 832.34,
+      "radius": 750.34,
       "rotationDeg": 10,
       "opacity": 0.1,
       "blend": "additive",
@@ -1070,7 +1070,7 @@
         "C:2CO:13"
       ],
       "center": null,
-      "radius": 710.6,
+      "radius": 500.6,
       "rotationDeg": -15,
       "opacity": 0.1,
       "blend": "additive",
@@ -1323,7 +1323,7 @@
         "C:HEB:13"
       ],
       "center": null,
-      "radius": 789.78,
+      "radius": 700.78,
       "rotationDeg": -12,
       "opacity": 0.1,
       "blend": "additive",
