@@ -23,7 +23,59 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:GEN:1",
+          "to": "C:GEN:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GEN:8",
+          "to": "C:GEN:15",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GEN:15",
+          "to": "C:GEN:22",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GEN:22",
+          "to": "C:GEN:29",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GEN:29",
+          "to": "C:GEN:36",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GEN:36",
+          "to": "C:GEN:43",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GEN:43",
+          "to": "C:GEN:50",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GEN:11",
+          "to": "C:GEN:25",
+          "weight": "thin"
+        },
+        {
+          "from": "C:GEN:25",
+          "to": "C:GEN:39",
+          "weight": "thin"
+        },
+        {
+          "from": "C:GEN:39",
+          "to": "C:GEN:44",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "EXODUS",
@@ -46,7 +98,54 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:EXO:1",
+          "to": "C:EXO:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EXO:8",
+          "to": "C:EXO:14",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EXO:14",
+          "to": "C:EXO:21",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EXO:21",
+          "to": "C:EXO:27",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EXO:27",
+          "to": "C:EXO:34",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EXO:34",
+          "to": "C:EXO:40",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EXO:9",
+          "to": "C:EXO:20",
+          "weight": "thin"
+        },
+        {
+          "from": "C:EXO:20",
+          "to": "C:EXO:31",
+          "weight": "thin"
+        },
+        {
+          "from": "C:EXO:31",
+          "to": "C:EXO:35",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "LEVITICUS",
@@ -69,7 +168,54 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:LEV:1",
+          "to": "C:LEV:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LEV:5",
+          "to": "C:LEV:10",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LEV:10",
+          "to": "C:LEV:14",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LEV:14",
+          "to": "C:LEV:18",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LEV:18",
+          "to": "C:LEV:23",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LEV:23",
+          "to": "C:LEV:27",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LEV:6",
+          "to": "C:LEV:14",
+          "weight": "thin"
+        },
+        {
+          "from": "C:LEV:14",
+          "to": "C:LEV:21",
+          "weight": "thin"
+        },
+        {
+          "from": "C:LEV:21",
+          "to": "C:LEV:24",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "NUMBERS",
@@ -92,7 +238,54 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:NUM:1",
+          "to": "C:NUM:7",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NUM:7",
+          "to": "C:NUM:13",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NUM:13",
+          "to": "C:NUM:19",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NUM:19",
+          "to": "C:NUM:24",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NUM:24",
+          "to": "C:NUM:30",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NUM:30",
+          "to": "C:NUM:36",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NUM:8",
+          "to": "C:NUM:18",
+          "weight": "thin"
+        },
+        {
+          "from": "C:NUM:18",
+          "to": "C:NUM:28",
+          "weight": "thin"
+        },
+        {
+          "from": "C:NUM:28",
+          "to": "C:NUM:32",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "DEUTERONOMY",
@@ -115,7 +308,49 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:DEU:1",
+          "to": "C:DEU:7",
+          "weight": "normal"
+        },
+        {
+          "from": "C:DEU:7",
+          "to": "C:DEU:12",
+          "weight": "normal"
+        },
+        {
+          "from": "C:DEU:12",
+          "to": "C:DEU:18",
+          "weight": "normal"
+        },
+        {
+          "from": "C:DEU:18",
+          "to": "C:DEU:23",
+          "weight": "normal"
+        },
+        {
+          "from": "C:DEU:23",
+          "to": "C:DEU:29",
+          "weight": "normal"
+        },
+        {
+          "from": "C:DEU:29",
+          "to": "C:DEU:34",
+          "weight": "normal"
+        },
+        {
+          "from": "C:DEU:17",
+          "to": "C:DEU:27",
+          "weight": "thin"
+        },
+        {
+          "from": "C:DEU:27",
+          "to": "C:DEU:30",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "JOSHUA",
@@ -138,7 +373,49 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:JOS:1",
+          "to": "C:JOS:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOS:5",
+          "to": "C:JOS:9",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOS:9",
+          "to": "C:JOS:13",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOS:13",
+          "to": "C:JOS:16",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOS:16",
+          "to": "C:JOS:20",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOS:20",
+          "to": "C:JOS:24",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOS:12",
+          "to": "C:JOS:19",
+          "weight": "thin"
+        },
+        {
+          "from": "C:JOS:19",
+          "to": "C:JOS:21",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "JUDGES",
@@ -161,7 +438,44 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:JDG:1",
+          "to": "C:JDG:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JDG:5",
+          "to": "C:JDG:9",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JDG:9",
+          "to": "C:JDG:13",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JDG:13",
+          "to": "C:JDG:17",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JDG:17",
+          "to": "C:JDG:21",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JDG:11",
+          "to": "C:JDG:16",
+          "weight": "thin"
+        },
+        {
+          "from": "C:JDG:16",
+          "to": "C:JDG:18",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "RUTH",
@@ -184,7 +498,24 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:RUT:1",
+          "to": "C:RUT:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:RUT:2",
+          "to": "C:RUT:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:RUT:3",
+          "to": "C:RUT:4",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "1SAMUEL",
@@ -207,7 +538,54 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:1SA:1",
+          "to": "C:1SA:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1SA:6",
+          "to": "C:1SA:11",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1SA:11",
+          "to": "C:1SA:16",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1SA:16",
+          "to": "C:1SA:21",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1SA:21",
+          "to": "C:1SA:26",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1SA:26",
+          "to": "C:1SA:31",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1SA:7",
+          "to": "C:1SA:16",
+          "weight": "thin"
+        },
+        {
+          "from": "C:1SA:16",
+          "to": "C:1SA:24",
+          "weight": "thin"
+        },
+        {
+          "from": "C:1SA:24",
+          "to": "C:1SA:27",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "2SAMUEL",
@@ -230,7 +608,49 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:2SA:1",
+          "to": "C:2SA:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2SA:5",
+          "to": "C:2SA:9",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2SA:9",
+          "to": "C:2SA:13",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2SA:13",
+          "to": "C:2SA:16",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2SA:16",
+          "to": "C:2SA:20",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2SA:20",
+          "to": "C:2SA:24",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2SA:12",
+          "to": "C:2SA:19",
+          "weight": "thin"
+        },
+        {
+          "from": "C:2SA:19",
+          "to": "C:2SA:21",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "1KINGS",
@@ -253,7 +673,44 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:1KI:1",
+          "to": "C:1KI:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1KI:5",
+          "to": "C:1KI:9",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1KI:9",
+          "to": "C:1KI:14",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1KI:14",
+          "to": "C:1KI:18",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1KI:18",
+          "to": "C:1KI:22",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1KI:11",
+          "to": "C:1KI:17",
+          "weight": "thin"
+        },
+        {
+          "from": "C:1KI:17",
+          "to": "C:1KI:19",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "2KINGS",
@@ -276,7 +733,54 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:2KI:1",
+          "to": "C:2KI:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2KI:5",
+          "to": "C:2KI:9",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2KI:9",
+          "to": "C:2KI:13",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2KI:13",
+          "to": "C:2KI:17",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2KI:17",
+          "to": "C:2KI:21",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2KI:21",
+          "to": "C:2KI:25",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2KI:6",
+          "to": "C:2KI:13",
+          "weight": "thin"
+        },
+        {
+          "from": "C:2KI:13",
+          "to": "C:2KI:20",
+          "weight": "thin"
+        },
+        {
+          "from": "C:2KI:20",
+          "to": "C:2KI:22",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "1CHRONICLES",
@@ -299,7 +803,49 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:1CH:1",
+          "to": "C:1CH:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1CH:6",
+          "to": "C:1CH:10",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1CH:10",
+          "to": "C:1CH:15",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1CH:15",
+          "to": "C:1CH:20",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1CH:20",
+          "to": "C:1CH:24",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1CH:24",
+          "to": "C:1CH:29",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1CH:15",
+          "to": "C:1CH:23",
+          "weight": "thin"
+        },
+        {
+          "from": "C:1CH:23",
+          "to": "C:1CH:26",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "2CHRONICLES",
@@ -322,7 +868,54 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:2CH:1",
+          "to": "C:2CH:7",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2CH:7",
+          "to": "C:2CH:13",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2CH:13",
+          "to": "C:2CH:19",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2CH:19",
+          "to": "C:2CH:24",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2CH:24",
+          "to": "C:2CH:30",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2CH:30",
+          "to": "C:2CH:36",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2CH:8",
+          "to": "C:2CH:18",
+          "weight": "thin"
+        },
+        {
+          "from": "C:2CH:18",
+          "to": "C:2CH:28",
+          "weight": "thin"
+        },
+        {
+          "from": "C:2CH:28",
+          "to": "C:2CH:32",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "EZRA",
@@ -345,7 +938,29 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:EZR:1",
+          "to": "C:EZR:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EZR:3",
+          "to": "C:EZR:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EZR:6",
+          "to": "C:EZR:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EZR:8",
+          "to": "C:EZR:10",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "NEHEMIAH",
@@ -368,7 +983,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:NEH:1",
+          "to": "C:NEH:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NEH:3",
+          "to": "C:NEH:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NEH:6",
+          "to": "C:NEH:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NEH:8",
+          "to": "C:NEH:11",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NEH:11",
+          "to": "C:NEH:13",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "ESTHER",
@@ -391,7 +1033,29 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:EST:1",
+          "to": "C:EST:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EST:3",
+          "to": "C:EST:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EST:6",
+          "to": "C:EST:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EST:8",
+          "to": "C:EST:10",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "JOB",
@@ -414,7 +1078,54 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:JOB:1",
+          "to": "C:JOB:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOB:8",
+          "to": "C:JOB:15",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOB:15",
+          "to": "C:JOB:22",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOB:22",
+          "to": "C:JOB:28",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOB:28",
+          "to": "C:JOB:35",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOB:35",
+          "to": "C:JOB:42",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOB:9",
+          "to": "C:JOB:21",
+          "weight": "thin"
+        },
+        {
+          "from": "C:JOB:21",
+          "to": "C:JOB:33",
+          "weight": "thin"
+        },
+        {
+          "from": "C:JOB:33",
+          "to": "C:JOB:37",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "PSALMS",
@@ -437,7 +1148,64 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:PSA:1",
+          "to": "C:PSA:20",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PSA:20",
+          "to": "C:PSA:38",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PSA:38",
+          "to": "C:PSA:57",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PSA:57",
+          "to": "C:PSA:76",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PSA:76",
+          "to": "C:PSA:94",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PSA:94",
+          "to": "C:PSA:113",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PSA:113",
+          "to": "C:PSA:131",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PSA:131",
+          "to": "C:PSA:150",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PSA:33",
+          "to": "C:PSA:75",
+          "weight": "thin"
+        },
+        {
+          "from": "C:PSA:75",
+          "to": "C:PSA:117",
+          "weight": "thin"
+        },
+        {
+          "from": "C:PSA:117",
+          "to": "C:PSA:132",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "PROVERBS",
@@ -460,7 +1228,54 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:PRO:1",
+          "to": "C:PRO:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PRO:6",
+          "to": "C:PRO:11",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PRO:11",
+          "to": "C:PRO:16",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PRO:16",
+          "to": "C:PRO:21",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PRO:21",
+          "to": "C:PRO:26",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PRO:26",
+          "to": "C:PRO:31",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PRO:7",
+          "to": "C:PRO:16",
+          "weight": "thin"
+        },
+        {
+          "from": "C:PRO:16",
+          "to": "C:PRO:24",
+          "weight": "thin"
+        },
+        {
+          "from": "C:PRO:24",
+          "to": "C:PRO:27",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "ECCLESIASTES",
@@ -483,7 +1298,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:ECC:1",
+          "to": "C:ECC:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ECC:3",
+          "to": "C:ECC:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ECC:5",
+          "to": "C:ECC:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ECC:8",
+          "to": "C:ECC:10",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ECC:10",
+          "to": "C:ECC:12",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "SONGOFSONGS",
@@ -506,7 +1348,29 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:SNG:1",
+          "to": "C:SNG:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:SNG:3",
+          "to": "C:SNG:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:SNG:5",
+          "to": "C:SNG:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:SNG:6",
+          "to": "C:SNG:8",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "ISAIAH",
@@ -529,7 +1393,59 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:ISA:1",
+          "to": "C:ISA:10",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ISA:10",
+          "to": "C:ISA:20",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ISA:20",
+          "to": "C:ISA:29",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ISA:29",
+          "to": "C:ISA:38",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ISA:38",
+          "to": "C:ISA:47",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ISA:47",
+          "to": "C:ISA:57",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ISA:57",
+          "to": "C:ISA:66",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ISA:15",
+          "to": "C:ISA:33",
+          "weight": "thin"
+        },
+        {
+          "from": "C:ISA:33",
+          "to": "C:ISA:51",
+          "weight": "thin"
+        },
+        {
+          "from": "C:ISA:51",
+          "to": "C:ISA:58",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "JEREMIAH",
@@ -552,7 +1468,59 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:JER:1",
+          "to": "C:JER:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JER:8",
+          "to": "C:JER:16",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JER:16",
+          "to": "C:JER:23",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JER:23",
+          "to": "C:JER:30",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JER:30",
+          "to": "C:JER:37",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JER:37",
+          "to": "C:JER:45",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JER:45",
+          "to": "C:JER:52",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JER:11",
+          "to": "C:JER:26",
+          "weight": "thin"
+        },
+        {
+          "from": "C:JER:26",
+          "to": "C:JER:41",
+          "weight": "thin"
+        },
+        {
+          "from": "C:JER:41",
+          "to": "C:JER:46",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "LAMENTATIONS",
@@ -575,7 +1543,29 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:LAM:1",
+          "to": "C:LAM:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LAM:2",
+          "to": "C:LAM:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LAM:3",
+          "to": "C:LAM:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LAM:4",
+          "to": "C:LAM:5",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "EZEKIEL",
@@ -598,7 +1588,59 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:EZK:1",
+          "to": "C:EZK:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EZK:8",
+          "to": "C:EZK:14",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EZK:14",
+          "to": "C:EZK:21",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EZK:21",
+          "to": "C:EZK:28",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EZK:28",
+          "to": "C:EZK:35",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EZK:35",
+          "to": "C:EZK:41",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EZK:41",
+          "to": "C:EZK:48",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EZK:11",
+          "to": "C:EZK:24",
+          "weight": "thin"
+        },
+        {
+          "from": "C:EZK:24",
+          "to": "C:EZK:37",
+          "weight": "thin"
+        },
+        {
+          "from": "C:EZK:37",
+          "to": "C:EZK:42",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "DANIEL",
@@ -621,7 +1663,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:DAN:1",
+          "to": "C:DAN:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:DAN:3",
+          "to": "C:DAN:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:DAN:5",
+          "to": "C:DAN:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:DAN:8",
+          "to": "C:DAN:10",
+          "weight": "normal"
+        },
+        {
+          "from": "C:DAN:10",
+          "to": "C:DAN:12",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "HOSEA",
@@ -644,7 +1713,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:HOS:1",
+          "to": "C:HOS:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:HOS:4",
+          "to": "C:HOS:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:HOS:6",
+          "to": "C:HOS:9",
+          "weight": "normal"
+        },
+        {
+          "from": "C:HOS:9",
+          "to": "C:HOS:11",
+          "weight": "normal"
+        },
+        {
+          "from": "C:HOS:11",
+          "to": "C:HOS:14",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "JOEL",
@@ -667,7 +1763,19 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:JOL:1",
+          "to": "C:JOL:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JOL:2",
+          "to": "C:JOL:3",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "AMOS",
@@ -690,7 +1798,29 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:AMO:1",
+          "to": "C:AMO:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:AMO:3",
+          "to": "C:AMO:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:AMO:5",
+          "to": "C:AMO:7",
+          "weight": "normal"
+        },
+        {
+          "from": "C:AMO:7",
+          "to": "C:AMO:9",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "OBADIAH",
@@ -713,7 +1843,8 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": []
     },
     {
       "id": "JONAH",
@@ -736,7 +1867,24 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:JON:1",
+          "to": "C:JON:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JON:2",
+          "to": "C:JON:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JON:3",
+          "to": "C:JON:4",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "MICAH",
@@ -759,7 +1907,29 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:MIC:1",
+          "to": "C:MIC:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MIC:3",
+          "to": "C:MIC:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MIC:4",
+          "to": "C:MIC:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MIC:6",
+          "to": "C:MIC:7",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "NAHUM",
@@ -782,7 +1952,19 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:NAM:1",
+          "to": "C:NAM:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:NAM:2",
+          "to": "C:NAM:3",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "HABAKKUK",
@@ -805,7 +1987,19 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:HAB:1",
+          "to": "C:HAB:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:HAB:2",
+          "to": "C:HAB:3",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "ZEPHANIAH",
@@ -828,7 +2022,19 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:ZEP:1",
+          "to": "C:ZEP:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ZEP:2",
+          "to": "C:ZEP:3",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "HAGGAI",
@@ -851,7 +2057,14 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:HAG:1",
+          "to": "C:HAG:2",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "ZECHARIAH",
@@ -874,7 +2087,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:ZEC:1",
+          "to": "C:ZEC:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ZEC:4",
+          "to": "C:ZEC:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ZEC:6",
+          "to": "C:ZEC:9",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ZEC:9",
+          "to": "C:ZEC:11",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ZEC:11",
+          "to": "C:ZEC:14",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "MALACHI",
@@ -897,7 +2137,24 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:MAL:1",
+          "to": "C:MAL:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MAL:2",
+          "to": "C:MAL:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MAL:3",
+          "to": "C:MAL:4",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "MATTHEW",
@@ -920,7 +2177,49 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:MAT:1",
+          "to": "C:MAT:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MAT:6",
+          "to": "C:MAT:10",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MAT:10",
+          "to": "C:MAT:15",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MAT:15",
+          "to": "C:MAT:19",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MAT:19",
+          "to": "C:MAT:24",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MAT:24",
+          "to": "C:MAT:28",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MAT:14",
+          "to": "C:MAT:22",
+          "weight": "thin"
+        },
+        {
+          "from": "C:MAT:22",
+          "to": "C:MAT:25",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "MARK",
@@ -943,7 +2242,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:MRK:1",
+          "to": "C:MRK:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MRK:4",
+          "to": "C:MRK:7",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MRK:7",
+          "to": "C:MRK:10",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MRK:10",
+          "to": "C:MRK:13",
+          "weight": "normal"
+        },
+        {
+          "from": "C:MRK:13",
+          "to": "C:MRK:16",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "LUKE",
@@ -966,7 +2292,49 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:LUK:1",
+          "to": "C:LUK:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LUK:5",
+          "to": "C:LUK:9",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LUK:9",
+          "to": "C:LUK:13",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LUK:13",
+          "to": "C:LUK:16",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LUK:16",
+          "to": "C:LUK:20",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LUK:20",
+          "to": "C:LUK:24",
+          "weight": "normal"
+        },
+        {
+          "from": "C:LUK:12",
+          "to": "C:LUK:19",
+          "weight": "thin"
+        },
+        {
+          "from": "C:LUK:19",
+          "to": "C:LUK:21",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "JOHN",
@@ -989,7 +2357,24 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:JHN:1",
+          "to": "C:JHN:6",
+          "weight": "bold"
+        },
+        {
+          "from": "C:JHN:6",
+          "to": "C:JHN:12",
+          "weight": "bold"
+        },
+        {
+          "from": "C:JHN:6",
+          "to": "C:JHN:20",
+          "weight": "bold"
+        }
+      ]
     },
     {
       "id": "ACTS",
@@ -1012,7 +2397,49 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:ACT:1",
+          "to": "C:ACT:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ACT:6",
+          "to": "C:ACT:10",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ACT:10",
+          "to": "C:ACT:15",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ACT:15",
+          "to": "C:ACT:19",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ACT:19",
+          "to": "C:ACT:24",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ACT:24",
+          "to": "C:ACT:28",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ACT:14",
+          "to": "C:ACT:22",
+          "weight": "thin"
+        },
+        {
+          "from": "C:ACT:22",
+          "to": "C:ACT:25",
+          "weight": "thin"
+        }
+      ]
     },
     {
       "id": "ROMANS",
@@ -1035,7 +2462,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:ROM:1",
+          "to": "C:ROM:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ROM:4",
+          "to": "C:ROM:7",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ROM:7",
+          "to": "C:ROM:10",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ROM:10",
+          "to": "C:ROM:13",
+          "weight": "normal"
+        },
+        {
+          "from": "C:ROM:13",
+          "to": "C:ROM:16",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "1CORINTHIANS",
@@ -1058,7 +2512,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:1CO:1",
+          "to": "C:1CO:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1CO:4",
+          "to": "C:1CO:7",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1CO:7",
+          "to": "C:1CO:10",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1CO:10",
+          "to": "C:1CO:13",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1CO:13",
+          "to": "C:1CO:16",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "2CORINTHIANS",
@@ -1081,7 +2562,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:2CO:1",
+          "to": "C:2CO:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2CO:3",
+          "to": "C:2CO:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2CO:6",
+          "to": "C:2CO:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2CO:8",
+          "to": "C:2CO:11",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2CO:11",
+          "to": "C:2CO:13",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "GALATIANS",
@@ -1104,7 +2612,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:GAL:1",
+          "to": "C:GAL:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GAL:2",
+          "to": "C:GAL:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GAL:3",
+          "to": "C:GAL:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GAL:4",
+          "to": "C:GAL:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:GAL:5",
+          "to": "C:GAL:6",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "EPHESIANS",
@@ -1127,7 +2662,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:EPH:1",
+          "to": "C:EPH:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EPH:2",
+          "to": "C:EPH:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EPH:3",
+          "to": "C:EPH:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EPH:4",
+          "to": "C:EPH:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:EPH:5",
+          "to": "C:EPH:6",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "PHILIPPIANS",
@@ -1150,7 +2712,24 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:PHP:1",
+          "to": "C:PHP:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PHP:2",
+          "to": "C:PHP:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:PHP:3",
+          "to": "C:PHP:4",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "COLOSSIANS",
@@ -1173,7 +2752,24 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:COL:1",
+          "to": "C:COL:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:COL:2",
+          "to": "C:COL:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:COL:3",
+          "to": "C:COL:4",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "1THESSALONIANS",
@@ -1196,7 +2792,29 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:1TH:1",
+          "to": "C:1TH:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1TH:2",
+          "to": "C:1TH:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1TH:3",
+          "to": "C:1TH:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1TH:4",
+          "to": "C:1TH:5",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "2THESSALONIANS",
@@ -1219,7 +2837,19 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:2TH:1",
+          "to": "C:2TH:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2TH:2",
+          "to": "C:2TH:3",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "1TIMOTHY",
@@ -1242,7 +2872,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:1TI:1",
+          "to": "C:1TI:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1TI:2",
+          "to": "C:1TI:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1TI:3",
+          "to": "C:1TI:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1TI:4",
+          "to": "C:1TI:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1TI:5",
+          "to": "C:1TI:6",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "2TIMOTHY",
@@ -1265,7 +2922,24 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:2TI:1",
+          "to": "C:2TI:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2TI:2",
+          "to": "C:2TI:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2TI:3",
+          "to": "C:2TI:4",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "TITUS",
@@ -1288,7 +2962,19 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:TIT:1",
+          "to": "C:TIT:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:TIT:2",
+          "to": "C:TIT:3",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "PHILEMON",
@@ -1311,7 +2997,8 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": []
     },
     {
       "id": "HEBREWS",
@@ -1334,7 +3021,34 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:HEB:1",
+          "to": "C:HEB:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:HEB:3",
+          "to": "C:HEB:6",
+          "weight": "normal"
+        },
+        {
+          "from": "C:HEB:6",
+          "to": "C:HEB:8",
+          "weight": "normal"
+        },
+        {
+          "from": "C:HEB:8",
+          "to": "C:HEB:11",
+          "weight": "normal"
+        },
+        {
+          "from": "C:HEB:11",
+          "to": "C:HEB:13",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "JAMES",
@@ -1357,7 +3071,29 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:JAS:1",
+          "to": "C:JAS:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JAS:2",
+          "to": "C:JAS:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JAS:3",
+          "to": "C:JAS:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:JAS:4",
+          "to": "C:JAS:5",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "1PETER",
@@ -1380,7 +3116,29 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:1PE:1",
+          "to": "C:1PE:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1PE:2",
+          "to": "C:1PE:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1PE:3",
+          "to": "C:1PE:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1PE:4",
+          "to": "C:1PE:5",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "2PETER",
@@ -1403,7 +3161,19 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:2PE:1",
+          "to": "C:2PE:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:2PE:2",
+          "to": "C:2PE:3",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "1JOHN",
@@ -1426,7 +3196,29 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:1JN:1",
+          "to": "C:1JN:2",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1JN:2",
+          "to": "C:1JN:3",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1JN:3",
+          "to": "C:1JN:4",
+          "weight": "normal"
+        },
+        {
+          "from": "C:1JN:4",
+          "to": "C:1JN:5",
+          "weight": "normal"
+        }
+      ]
     },
     {
       "id": "2JOHN",
@@ -1449,7 +3241,8 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": []
     },
     {
       "id": "3JOHN",
@@ -1472,7 +3265,8 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": []
     },
     {
       "id": "JUDE",
@@ -1495,7 +3289,8 @@
         "hoverBoost": 0,
         "minOpacity": 0.1,
         "maxOpacity": 0.4
-      }
+      },
+      "lineSegments": []
     },
     {
       "id": "REVELATION",
@@ -1518,7 +3313,44 @@
         "hoverBoost": 0,
         "minOpacity": 0.2,
         "maxOpacity": 0.6
-      }
+      },
+      "lineSegments": [
+        {
+          "from": "C:REV:1",
+          "to": "C:REV:5",
+          "weight": "normal"
+        },
+        {
+          "from": "C:REV:5",
+          "to": "C:REV:9",
+          "weight": "normal"
+        },
+        {
+          "from": "C:REV:9",
+          "to": "C:REV:14",
+          "weight": "normal"
+        },
+        {
+          "from": "C:REV:14",
+          "to": "C:REV:18",
+          "weight": "normal"
+        },
+        {
+          "from": "C:REV:18",
+          "to": "C:REV:22",
+          "weight": "normal"
+        },
+        {
+          "from": "C:REV:11",
+          "to": "C:REV:17",
+          "weight": "thin"
+        },
+        {
+          "from": "C:REV:17",
+          "to": "C:REV:19",
+          "weight": "thin"
+        }
+      ]
     }
   ]
 }
