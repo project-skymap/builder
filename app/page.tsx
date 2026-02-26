@@ -63,7 +63,12 @@ export default function Page() {
   const [starSizeExponent, setStarSizeExponent] = useState(4.0);
   const [starSizeScale, setStarSizeScale] = useState(6.0);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
+  const [showMoon, setShowMoon] = useState(true);
+  const [showSunrise, setShowSunrise] = useState(true);
   const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
+  const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(40);
+  const [labelOverlapPx, setLabelOverlapPx] = useState(12);
+  const [labelReappearDelayMs, setLabelReappearDelayMs] = useState(60);
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
   const [revealOrderEnabled, setRevealOrderEnabled] = useState(true);
   const [selectedGuess, setSelectedGuess] = useState<SceneNode | null>(null);
@@ -161,6 +166,14 @@ export default function Page() {
       showDivisionLabels,
       showChapterLabels,
       showGroupLabels,
+      labelBehavior: {
+        overlapPaddingPx: 2,
+        reappearDelayMs: labelReappearDelayMs,
+        classes: {
+          chapter: { maxFov: chapterLabelMaxFov, maxOverlapPx: labelOverlapPx },
+          group: { maxFov: chapterLabelMaxFov + 6, maxOverlapPx: labelOverlapPx }
+        }
+      },
       showConstellationLines: showLines,
       showDivisionBoundaries: showBoundaries,
       showConstellationArt,
@@ -170,6 +183,9 @@ export default function Page() {
       starSizeExponent,
       starSizeScale,
       showAtmosphere,
+      showMoon,
+      showSunrise,
+      sunriseTextureUrl: '/star-sunrise.png',
       projection,
       constellations: constellationConfig,
       fitProjection: true,
@@ -192,7 +208,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, starSizeExponent, starSizeScale, constellationConfig, initialLon, projection]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, starSizeExponent, starSizeScale, constellationConfig, initialLon, projection, chapterLabelMaxFov, labelOverlapPx, labelReappearDelayMs, showMoon, showSunrise]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -443,6 +459,8 @@ export default function Page() {
             </div>
         )}
         <div className="control-group"><label><span>Atmosphere</span><input type="checkbox" checked={showAtmosphere} onChange={e => setShowAtmosphere(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Moon</span><input type="checkbox" checked={showMoon} onChange={e => setShowMoon(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Sunrise</span><input type="checkbox" checked={showSunrise} onChange={e => setShowSunrise(e.target.checked)} /></label></div>
         <div className="control-group">
             <label style={{ justifyContent: 'space-between', width: '100%' }}>
                 <span>Star Size Curve</span>
@@ -484,6 +502,66 @@ export default function Page() {
             </label>
         </div>
         <div className="control-group"><label><span>Projection</span><select value={projection} onChange={e => setProjection(e.target.value as any)} style={{ background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '2px 4px', fontSize: 12 }}><option value="blended">Blended (Auto)</option><option value="perspective">Perspective</option><option value="stereographic">Stereographic</option></select></label></div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Chapter Label Max FOV</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="5" max="120" step="1"
+                        value={chapterLabelMaxFov}
+                        onChange={e => setChapterLabelMaxFov(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="5" max="120" step="1"
+                        value={chapterLabelMaxFov}
+                        onChange={e => setChapterLabelMaxFov(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Label Overlap (px)</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="0" max="40" step="1"
+                        value={labelOverlapPx}
+                        onChange={e => setLabelOverlapPx(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="0" max="40" step="1"
+                        value={labelOverlapPx}
+                        onChange={e => setLabelOverlapPx(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Label Reappear Delay (ms)</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="0" max="1000" step="10"
+                        value={labelReappearDelayMs}
+                        onChange={e => setLabelReappearDelayMs(Number(e.target.value))}
+                        style={{ width: 56, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="0" max="1000" step="10"
+                        value={labelReappearDelayMs}
+                        onChange={e => setLabelReappearDelayMs(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
 
         <div className="divider"></div>
         
