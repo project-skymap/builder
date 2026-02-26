@@ -65,8 +65,9 @@ export default function Page() {
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [showMoon, setShowMoon] = useState(true);
   const [showSunrise, setShowSunrise] = useState(true);
+  const [showMilkyWay, setShowMilkyWay] = useState(false);
   const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
-  const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(40);
+  const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(46);
   const [labelOverlapPx, setLabelOverlapPx] = useState(12);
   const [labelReappearDelayMs, setLabelReappearDelayMs] = useState(60);
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
@@ -185,7 +186,7 @@ export default function Page() {
       showAtmosphere,
       showMoon,
       showSunrise,
-      sunriseTextureUrl: '/star-sunrise.png',
+      showMilkyWay,
       projection,
       constellations: constellationConfig,
       fitProjection: true,
@@ -208,7 +209,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, starSizeExponent, starSizeScale, constellationConfig, initialLon, projection, chapterLabelMaxFov, labelOverlapPx, labelReappearDelayMs, showMoon, showSunrise]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, starSizeExponent, starSizeScale, constellationConfig, initialLon, projection, chapterLabelMaxFov, labelOverlapPx, labelReappearDelayMs, showMoon, showSunrise, showMilkyWay]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -461,6 +462,7 @@ export default function Page() {
         <div className="control-group"><label><span>Atmosphere</span><input type="checkbox" checked={showAtmosphere} onChange={e => setShowAtmosphere(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Moon</span><input type="checkbox" checked={showMoon} onChange={e => setShowMoon(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Sunrise</span><input type="checkbox" checked={showSunrise} onChange={e => setShowSunrise(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Milky Way</span><input type="checkbox" checked={showMilkyWay} onChange={e => setShowMilkyWay(e.target.checked)} /></label></div>
         <div className="control-group">
             <label style={{ justifyContent: 'space-between', width: '100%' }}>
                 <span>Star Size Curve</span>
