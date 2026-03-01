@@ -60,11 +60,14 @@ export default function Page() {
   const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(25);
   const [showBackdropStars, setShowBackdropStars] = useState(true);
   const [backdropStarsCount, setBackdropStarsCount] = useState(5000);
+  const [backdropWideFovGain, setBackdropWideFovGain] = useState(0);
+  const [backdropSizeExponent, setBackdropSizeExponent] = useState(0.2);
+  const [backdropEnergy, setBackdropEnergy] = useState(0.2);
   const [starSizeExponent, setStarSizeExponent] = useState(4.0);
   const [starSizeScale, setStarSizeScale] = useState(6.0);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
-  const [showMoon, setShowMoon] = useState(true);
-  const [showSunrise, setShowSunrise] = useState(true);
+  const [showMoon, setShowMoon] = useState(false);
+  const [showSunrise, setShowSunrise] = useState(false);
   const [showMilkyWay, setShowMilkyWay] = useState(false);
   const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
   const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(46);
@@ -181,6 +184,9 @@ export default function Page() {
       constellationBaseOpacity,
       showBackdropStars,
       backdropStarsCount,
+      backdropWideFovGain,
+      backdropSizeExponent,
+      backdropEnergy,
       starSizeExponent,
       starSizeScale,
       showAtmosphere,
@@ -209,7 +215,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, starSizeExponent, starSizeScale, constellationConfig, initialLon, projection, chapterLabelMaxFov, labelOverlapPx, labelReappearDelayMs, showMoon, showSunrise, showMilkyWay]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, backdropWideFovGain, backdropSizeExponent, backdropEnergy, starSizeExponent, starSizeScale, constellationConfig, initialLon, projection, chapterLabelMaxFov, labelOverlapPx, labelReappearDelayMs, showMoon, showSunrise, showMilkyWay]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -444,20 +450,82 @@ export default function Page() {
         </div>
         <div className="control-group"><label><span>Backdrop Stars</span><input type="checkbox" checked={showBackdropStars} onChange={e => setShowBackdropStars(e.target.checked)} /></label></div>
         {showBackdropStars && (
-            <div className="control-group" style={{ paddingLeft: 10 }}>
-                <label style={{ justifyContent: 'space-between', width: '100%' }}>
-                    <span style={{ fontSize: '0.9em', color: '#ccc' }}>Count</span>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <span className="value-display" style={{ marginRight: 5, width: 40, textAlign: 'right' }}>{backdropStarsCount}</span>
-                        <input 
-                            type="range" 
-                            min="0" max="50000" step="1000"
-                            value={backdropStarsCount} 
-                            onChange={e => setBackdropStarsCount(Number(e.target.value))} 
-                        />
-                    </div>
-                </label>
-            </div>
+            <>
+                <div className="control-group" style={{ paddingLeft: 10 }}>
+                    <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                        <span style={{ fontSize: '0.9em', color: '#ccc' }}>Count</span>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span className="value-display" style={{ marginRight: 5, width: 40, textAlign: 'right' }}>{backdropStarsCount}</span>
+                            <input 
+                                type="range" 
+                                min="0" max="50000" step="1000"
+                                value={backdropStarsCount} 
+                                onChange={e => setBackdropStarsCount(Number(e.target.value))} 
+                            />
+                        </div>
+                    </label>
+                </div>
+                <div className="control-group" style={{ paddingLeft: 10 }}>
+                    <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                        <span style={{ fontSize: '0.9em', color: '#ccc' }}>Wide FOV Gain</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <input
+                                type="number"
+                                min="0" max="1" step="0.01"
+                                value={backdropWideFovGain}
+                                onChange={e => setBackdropWideFovGain(Number(e.target.value))}
+                                style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                            />
+                            <input
+                                type="range"
+                                min="0" max="1" step="0.01"
+                                value={backdropWideFovGain}
+                                onChange={e => setBackdropWideFovGain(Number(e.target.value))}
+                            />
+                        </div>
+                    </label>
+                </div>
+                <div className="control-group" style={{ paddingLeft: 10 }}>
+                    <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                        <span style={{ fontSize: '0.9em', color: '#ccc' }}>Size Exponent</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <input
+                                type="number"
+                                min="0.4" max="1.4" step="0.01"
+                                value={backdropSizeExponent}
+                                onChange={e => setBackdropSizeExponent(Number(e.target.value))}
+                                style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                            />
+                            <input
+                                type="range"
+                                min="0.4" max="1.4" step="0.01"
+                                value={backdropSizeExponent}
+                                onChange={e => setBackdropSizeExponent(Number(e.target.value))}
+                            />
+                        </div>
+                    </label>
+                </div>
+                <div className="control-group" style={{ paddingLeft: 10 }}>
+                    <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                        <span style={{ fontSize: '0.9em', color: '#ccc' }}>Backdrop Energy</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <input
+                                type="number"
+                                min="0.2" max="5" step="0.1"
+                                value={backdropEnergy}
+                                onChange={e => setBackdropEnergy(Number(e.target.value))}
+                                style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                            />
+                            <input
+                                type="range"
+                                min="0.2" max="5" step="0.1"
+                                value={backdropEnergy}
+                                onChange={e => setBackdropEnergy(Number(e.target.value))}
+                            />
+                        </div>
+                    </label>
+                </div>
+            </>
         )}
         <div className="control-group"><label><span>Atmosphere</span><input type="checkbox" checked={showAtmosphere} onChange={e => setShowAtmosphere(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Moon</span><input type="checkbox" checked={showMoon} onChange={e => setShowMoon(e.target.checked)} /></label></div>
