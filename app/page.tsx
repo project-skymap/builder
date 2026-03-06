@@ -57,8 +57,8 @@ export default function Page() {
   const [initialLon, setInitialLon] = useState(275);
   const [currentFov, setCurrentFov] = useState(50);
   const [showConstellationArt, setShowConstellationArt] = useState(true);
-  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(50);
-  const [showBackdropStars, setShowBackdropStars] = useState(true);
+  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(25);
+  const [showBackdropStars, setShowBackdropStars] = useState(false);
   const [backdropStarsCount, setBackdropStarsCount] = useState(5000);
   const [backdropWideFovGain, setBackdropWideFovGain] = useState(0);
   const [backdropSizeExponent, setBackdropSizeExponent] = useState(0.2);
@@ -70,7 +70,7 @@ export default function Page() {
   const [showSunrise, setShowSunrise] = useState(false);
   const [showMilkyWay, setShowMilkyWay] = useState(false);
   const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
-  const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(46);
+  const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(22);
   const [labelOverlapPx, setLabelOverlapPx] = useState(12);
   const [labelReappearDelayMs, setLabelReappearDelayMs] = useState(60);
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
@@ -78,6 +78,7 @@ export default function Page() {
   const [selectedGuess, setSelectedGuess] = useState<SceneNode | null>(null);
   const [hierarchyFilter, setHierarchyFilter] = useState<HierarchyFilter | null>(null);
   const [guessHistory, setGuessHistory] = useState<{node: SceneNode, result: string}[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [solved, setSolved] = useState(false);
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const [longPressInfo, setLongPressInfo] = useState<{ node: SceneNode | null; x: number; y: number } | null>(null);
@@ -175,7 +176,7 @@ export default function Page() {
         reappearDelayMs: labelReappearDelayMs,
         classes: {
           chapter: { maxFov: chapterLabelMaxFov, maxOverlapPx: labelOverlapPx },
-          group: { maxFov: chapterLabelMaxFov + 6, maxOverlapPx: labelOverlapPx }
+          group: { maxFov: chapterLabelMaxFov, maxOverlapPx: labelOverlapPx }
         }
       },
       showConstellationLines: showLines,
@@ -398,7 +399,16 @@ export default function Page() {
             </div>
         )}
 
-        <div className="divider"></div>
+        <div
+            className="divider"
+            onClick={() => setSettingsOpen(v => !v)}
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', userSelect: 'none' }}
+        >
+            <span style={{ fontSize: 10, color: '#666', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Settings</span>
+            <span style={{ fontSize: 10, color: '#555' }}>{settingsOpen ? '▲' : '▼'}</span>
+        </div>
+
+        {settingsOpen && <>
 
         <div className="control-group">
             <label style={{ justifyContent: 'space-between', width: '100%' }}>
@@ -655,13 +665,13 @@ export default function Page() {
         
         {isEditable && (
             <div style={{ marginTop: 10 }}>
-                <button 
+                <button
                     onClick={handleGenerate}
                     style={{ background: "#581c87", borderColor: "#8b5cf6" }}
                 >
                     Generate Galaxy
                 </button>
-                <button 
+                <button
                     onClick={handleExport}
                 >
                     Export JSON
@@ -671,6 +681,8 @@ export default function Page() {
                 </p>
             </div>
         )}
+
+        </>}
       </div>
 
       <StarMap
