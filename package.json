@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "NEXT_PUBLIC_BASE_PATH=/builder next build",
-    "start": "next start"
+    "start": "next start",
+    "analyze:constellations": "node scripts/analyze-constellation-sizes.js"
   },
   "dependencies": {
     "@project-skymap/library": "*",

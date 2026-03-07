@@ -48,3 +48,32 @@ To add constellation artwork:
     *   `radius`: Size of the artwork (approximate sky units).
     *   `rotationDeg`: Rotation in degrees.
     *   `fade`: Control zoom visibility (`zoomInStart` = start fading in, `zoomInEnd` = fully visible).
+
+## Custom Constellation Line Topology
+
+By default, chapter stars are connected sequentially (`1->2->3->...`) per book.
+You can override this in `public/constellations.json` using `linePaths` and/or `lineSegments` on each constellation.
+
+Example:
+
+```json
+{
+  "id": "EXODUS",
+  "linePaths": [
+    { "weight": "bold", "nodes": ["C:EXO:1", "C:EXO:7", "C:EXO:12", "C:EXO:15"] },
+    { "weight": "thin", "nodes": ["C:EXO:19", "C:EXO:20", "C:EXO:24"] }
+  ],
+  "lineSegments": [
+    { "weight": "bold", "from": "C:EXO:7", "to": "C:EXO:20" },
+    { "weight": "thin", "from": "C:EXO:12", "to": "C:EXO:31" }
+  ]
+}
+```
+
+Notes:
+- `nodes` are chapter IDs from the scene model (`C:<BOOK_KEY>:<CHAPTER>`).
+- Paths are expanded pairwise (`A->B`, `B->C`, ...).
+- `lineSegments` lets you define explicit edges (`from`/`to`) for branch structures.
+- `weight` is optional: `"thin" | "normal" | "bold"`.
+- Duplicate edges are de-duplicated automatically (including reversed duplicates).
+- If any custom topology (`linePaths` or `lineSegments`) is present for a book, sequential fallback linking is disabled for that book.
