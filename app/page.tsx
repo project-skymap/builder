@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useMemo, useState, useRef, useEffect } from "react";
-import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle, BibleJSON, HierarchyFilter } from "@project-skymap/library";
+import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle, BibleJSON, HierarchyFilter, HorizonThemeConfig } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel, generateArrangement, defaultGenerateOptions } from "@project-skymap/library";
 import bible from "../public/bible.json";
 import initialArrangement from "./arrangement.json";
 import groups from "./groups.json";
 import labelColors from "../public/colours.json";
+import horizonPresetData from "../public/horizons/biblical-presets.v1.json";
 
 const BOOK_COLORS: Record<string, string> = {};
 
@@ -45,6 +46,8 @@ const ANSWER = {
 };
 
 export default function Page() {
+  const presetThemes = (horizonPresetData.themes ?? []) as HorizonThemeConfig[];
+  const presetDefaultThemeId = (horizonPresetData.defaultThemeId ?? "") as string;
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   const [arrangement, setArrangement] = useState<StarArrangement>(initialArrangement as unknown as StarArrangement);
   const [isEditable, setIsEditable] = useState(false);
@@ -55,9 +58,10 @@ export default function Page() {
   const [showLines, setShowLines] = useState(false);
   const [showBoundaries, setShowBoundaries] = useState(false);
   const [initialLon, setInitialLon] = useState(275);
-  const [currentFov, setCurrentFov] = useState(50);
+  const [initialLat, setInitialLat] = useState(20);
+  const [currentFov, setCurrentFov] = useState(35);
   const [showConstellationArt, setShowConstellationArt] = useState(true);
-  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(25);
+  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(20);
   const [showBackdropStars, setShowBackdropStars] = useState(false);
   const [backdropStarsCount, setBackdropStarsCount] = useState(5000);
   const [backdropWideFovGain, setBackdropWideFovGain] = useState(0);
@@ -83,6 +87,13 @@ export default function Page() {
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const [longPressInfo, setLongPressInfo] = useState<{ node: SceneNode | null; x: number; y: number } | null>(null);
   const [showGestureHints, setShowGestureHints] = useState(false);
+  const [horizonThemes] = useState<HorizonThemeConfig[]>(presetThemes);
+  const [selectedHorizonThemeId, setSelectedHorizonThemeId] = useState<string>(presetDefaultThemeId || presetThemes[0]?.id || "");
+  const [projectionBlendOverride, setProjectionBlendOverride] = useState(-1);
+  const [disableZenithBias, setDisableZenithBias] = useState(false);
+  const [disableZenithFlatten, setDisableZenithFlatten] = useState(false);
+  const [disableHorizonTheme, setDisableHorizonTheme] = useState(false);
+  const [horizonDiagnostics, setHorizonDiagnostics] = useState(false);
   const touchStartY = useRef<number | null>(null);
   const mapRef = useRef<StarMapHandle>(null);
 
@@ -124,6 +135,11 @@ export default function Page() {
       });
   }, []);
 
+  const selectedHorizonTheme = useMemo(
+    () => horizonThemes.find((t) => t.id === selectedHorizonThemeId),
+    [horizonThemes, selectedHorizonThemeId]
+  );
+
   const handleArrangementChange = useCallback((newArr: StarArrangement) => {
     setArrangement(newArr);
   }, []);
@@ -160,7 +176,7 @@ export default function Page() {
   const config = useMemo<StarMapConfig>(
     () => ({
       background: "#05060a",
-      camera: { lon: initialLon * Math.PI / 180 },
+      camera: { lon: initialLon * Math.PI / 180, lat: initialLat * Math.PI / 180 },
       data: bible,
       adapter: bibleToSceneModel,
       arrangement,
@@ -194,9 +210,19 @@ export default function Page() {
       showMoon,
       showSunrise,
       showMilkyWay,
+      horizonTheme: selectedHorizonTheme,
       projection,
       constellations: constellationConfig,
       fitProjection: true,
+      debug: {
+        sceneMechanics: {
+          projectionBlendOverride: projectionBlendOverride < 0 ? null : projectionBlendOverride,
+          disableZenithBias,
+          disableZenithFlatten,
+          disableHorizonTheme,
+          horizonDiagnostics
+        }
+      },
       visuals: {
         colorBy: [
           // Per-book colors (level 3)
@@ -216,7 +242,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, backdropWideFovGain, backdropSizeExponent, backdropEnergy, starSizeExponent, starSizeScale, constellationConfig, initialLon, projection, chapterLabelMaxFov, labelOverlapPx, labelReappearDelayMs, showMoon, showSunrise, showMilkyWay]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, backdropWideFovGain, backdropSizeExponent, backdropEnergy, starSizeExponent, starSizeScale, constellationConfig, initialLon, initialLat, projection, chapterLabelMaxFov, labelOverlapPx, labelReappearDelayMs, showMoon, showSunrise, showMilkyWay, selectedHorizonTheme, projectionBlendOverride, disableZenithBias, disableZenithFlatten, disableHorizonTheme, horizonDiagnostics]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -415,12 +441,16 @@ export default function Page() {
                 <span>Rotation</span>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                     <span className="value-display" style={{ marginRight: 5 }}>{initialLon}°</span>
-                    <input 
-                        type="range" 
-                        min="0" max="360" 
-                        value={initialLon} 
-                        onChange={e => setInitialLon(Number(e.target.value))} 
-                    />
+                    <input type="range" min="0" max="360" value={initialLon} onChange={e => setInitialLon(Number(e.target.value))} />
+                </div>
+            </label>
+        </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Tilt</span>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="value-display" style={{ marginRight: 5 }}>{initialLat}°</span>
+                    <input type="range" min="-89" max="89" value={initialLat} onChange={e => setInitialLat(Number(e.target.value))} />
                 </div>
             </label>
         </div>
@@ -542,6 +572,24 @@ export default function Page() {
         <div className="control-group"><label><span>Sunrise</span><input type="checkbox" checked={showSunrise} onChange={e => setShowSunrise(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Milky Way</span><input type="checkbox" checked={showMilkyWay} onChange={e => setShowMilkyWay(e.target.checked)} /></label></div>
         <div className="control-group">
+            <label>
+                <span>Horizon Theme</span>
+                <select
+                    value={selectedHorizonThemeId}
+                    onChange={e => setSelectedHorizonThemeId(e.target.value)}
+                    style={{ background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '2px 4px', fontSize: 12 }}
+                >
+                    {horizonThemes.length === 0 ? (
+                        <option value="">Loading…</option>
+                    ) : (
+                        horizonThemes.map((theme) => (
+                            <option key={theme.id} value={theme.id}>{theme.label}</option>
+                        ))
+                    )}
+                </select>
+            </label>
+        </div>
+        <div className="control-group">
             <label style={{ justifyContent: 'space-between', width: '100%' }}>
                 <span>Star Size Curve</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -582,6 +630,30 @@ export default function Page() {
             </label>
         </div>
         <div className="control-group"><label><span>Projection</span><select value={projection} onChange={e => setProjection(e.target.value as any)} style={{ background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '2px 4px', fontSize: 12 }}><option value="blended">Blended (Auto)</option><option value="perspective">Perspective</option><option value="stereographic">Stereographic</option></select></label></div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Blend Override</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="-1" max="1" step="0.05"
+                        value={projectionBlendOverride}
+                        onChange={e => setProjectionBlendOverride(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="-1" max="1" step="0.05"
+                        value={projectionBlendOverride}
+                        onChange={e => setProjectionBlendOverride(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group"><label><span>Disable Zenith Bias</span><input type="checkbox" checked={disableZenithBias} onChange={e => setDisableZenithBias(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Disable Zenith Flatten</span><input type="checkbox" checked={disableZenithFlatten} onChange={e => setDisableZenithFlatten(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Disable Horizon Theme</span><input type="checkbox" checked={disableHorizonTheme} onChange={e => setDisableHorizonTheme(e.target.checked)} /></label></div>
+        <div className="control-group"><label><span>Horizon Diagnostics</span><input type="checkbox" checked={horizonDiagnostics} onChange={e => setHorizonDiagnostics(e.target.checked)} /></label></div>
         <div className="control-group">
             <label style={{ justifyContent: 'space-between', width: '100%' }}>
                 <span>Chapter Label Max FOV</span>
