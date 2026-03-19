@@ -61,7 +61,7 @@ export default function Page() {
   const [initialLat, setInitialLat] = useState(20);
   const [currentFov, setCurrentFov] = useState(35);
   const [showConstellationArt, setShowConstellationArt] = useState(true);
-  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(20);
+  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(40);
   const [showBackdropStars, setShowBackdropStars] = useState(false);
   const [backdropStarsCount, setBackdropStarsCount] = useState(5000);
   const [backdropWideFovGain, setBackdropWideFovGain] = useState(0);
