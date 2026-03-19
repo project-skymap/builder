@@ -228,7 +228,7 @@
       ],
       "center": null,
       "radius": 1000.76,
-      "rotationDeg": -20,
+      "rotationDeg": 35,
       "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
@@ -298,7 +298,7 @@
       ],
       "center": null,
       "radius": 1452.73,
-      "rotationDeg": 5,
+      "rotationDeg": 65,
       "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
@@ -428,7 +428,7 @@
       ],
       "center": null,
       "radius": 1149.28,
-      "rotationDeg": 100,
+      "rotationDeg": 15,
       "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
@@ -793,7 +793,7 @@
       ],
       "center": null,
       "radius": 1159.61,
-      "rotationDeg": 20,
+      "rotationDeg": 110,
       "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
@@ -973,7 +973,7 @@
       ],
       "center": null,
       "radius": 500.31,
-      "rotationDeg": 125,
+      "rotationDeg": -55,
       "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
@@ -2077,7 +2077,7 @@
       ],
       "center": null,
       "radius": 599.06,
-      "rotationDeg": 20,
+      "rotationDeg": 110,
       "opacity": 0.01,
       "blend": "additive",
       "zBias": 2,
@@ -2296,42 +2296,17 @@
       "lineSegments": [
         {
           "from": "C:LUK:1",
-          "to": "C:LUK:5",
-          "weight": "normal"
-        },
-        {
-          "from": "C:LUK:5",
           "to": "C:LUK:9",
           "weight": "normal"
         },
         {
           "from": "C:LUK:9",
-          "to": "C:LUK:13",
-          "weight": "normal"
-        },
-        {
-          "from": "C:LUK:13",
-          "to": "C:LUK:16",
-          "weight": "normal"
-        },
-        {
-          "from": "C:LUK:16",
-          "to": "C:LUK:20",
-          "weight": "normal"
-        },
-        {
-          "from": "C:LUK:20",
-          "to": "C:LUK:24",
-          "weight": "normal"
-        },
-        {
-          "from": "C:LUK:12",
-          "to": "C:LUK:19",
+          "to": "C:LUK:22",
           "weight": "thin"
         },
         {
-          "from": "C:LUK:19",
-          "to": "C:LUK:21",
+          "from": "C:LUK:22",
+          "to": "C:LUK:24",
           "weight": "thin"
         }
       ]

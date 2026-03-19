@@ -69,6 +69,8 @@ export default function Page() {
   const [backdropEnergy, setBackdropEnergy] = useState(0.2);
   const [starSizeExponent, setStarSizeExponent] = useState(4.0);
   const [starSizeScale, setStarSizeScale] = useState(6.0);
+  const [starSizeWeightPercentile, setStarSizeWeightPercentile] = useState(1.0);
+  const [starZoomReveal, setStarZoomReveal] = useState(false);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [showMoon, setShowMoon] = useState(false);
   const [showSunrise, setShowSunrise] = useState(false);
@@ -94,6 +96,13 @@ export default function Page() {
   const [disableZenithFlatten, setDisableZenithFlatten] = useState(false);
   const [disableHorizonTheme, setDisableHorizonTheme] = useState(false);
   const [horizonDiagnostics, setHorizonDiagnostics] = useState(false);
+  const [freezeBandStartFov, setFreezeBandStartFov] = useState(76);
+  const [freezeBandEndFov, setFreezeBandEndFov] = useState(84);
+  const [zenithBiasStartFov, setZenithBiasStartFov] = useState(85);
+  const [verticalPanDampStartFov, setVerticalPanDampStartFov] = useState(72);
+  const [verticalPanDampEndFov, setVerticalPanDampEndFov] = useState(96);
+  const [verticalPanDampLatStartDeg, setVerticalPanDampLatStartDeg] = useState(45);
+  const [verticalPanDampLatEndDeg, setVerticalPanDampLatEndDeg] = useState(82);
   const touchStartY = useRef<number | null>(null);
   const mapRef = useRef<StarMapHandle>(null);
 
@@ -206,6 +215,8 @@ export default function Page() {
       backdropEnergy,
       starSizeExponent,
       starSizeScale,
+      starSizeWeightPercentile,
+      starZoomReveal,
       showAtmosphere,
       showMoon,
       showSunrise,
@@ -220,7 +231,14 @@ export default function Page() {
           disableZenithBias,
           disableZenithFlatten,
           disableHorizonTheme,
-          horizonDiagnostics
+          horizonDiagnostics,
+          freezeBandStartFov,
+          freezeBandEndFov,
+          zenithBiasStartFov,
+          verticalPanDampStartFov,
+          verticalPanDampEndFov,
+          verticalPanDampLatStartDeg,
+          verticalPanDampLatEndDeg
         }
       },
       visuals: {
@@ -242,7 +260,7 @@ export default function Page() {
         animate: true
       }
     }),
-    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, backdropWideFovGain, backdropSizeExponent, backdropEnergy, starSizeExponent, starSizeScale, constellationConfig, initialLon, initialLat, projection, chapterLabelMaxFov, labelOverlapPx, labelReappearDelayMs, showMoon, showSunrise, showMilkyWay, selectedHorizonTheme, projectionBlendOverride, disableZenithBias, disableZenithFlatten, disableHorizonTheme, horizonDiagnostics]
+    [focusNodeId, arrangement, isEditable, showBookLabels, showDivisionLabels, showChapterLabels, showGroupLabels, showLines, showBoundaries, showConstellationArt, constellationBaseOpacity, showBackdropStars, backdropStarsCount, backdropWideFovGain, backdropSizeExponent, backdropEnergy, starSizeExponent, starSizeScale, starSizeWeightPercentile, starZoomReveal, constellationConfig, initialLon, initialLat, projection, chapterLabelMaxFov, labelOverlapPx, labelReappearDelayMs, showMoon, showSunrise, showMilkyWay, selectedHorizonTheme, projectionBlendOverride, disableZenithBias, disableZenithFlatten, disableHorizonTheme, horizonDiagnostics, freezeBandStartFov, freezeBandEndFov, zenithBiasStartFov, verticalPanDampStartFov, verticalPanDampEndFov, verticalPanDampLatStartDeg, verticalPanDampLatEndDeg]
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
@@ -629,6 +647,27 @@ export default function Page() {
                 </div>
             </label>
         </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Size Cap %ile</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="0.5" max="1.0" step="0.01"
+                        value={starSizeWeightPercentile}
+                        onChange={e => setStarSizeWeightPercentile(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="0.5" max="1.0" step="0.01"
+                        value={starSizeWeightPercentile}
+                        onChange={e => setStarSizeWeightPercentile(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group"><label><span>Zoom Reveal</span><input type="checkbox" checked={starZoomReveal} onChange={e => setStarZoomReveal(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Projection</span><select value={projection} onChange={e => setProjection(e.target.value as any)} style={{ background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '2px 4px', fontSize: 12 }}><option value="blended">Blended (Auto)</option><option value="perspective">Perspective</option><option value="stereographic">Stereographic</option></select></label></div>
         <div className="control-group">
             <label style={{ justifyContent: 'space-between', width: '100%' }}>
@@ -654,6 +693,146 @@ export default function Page() {
         <div className="control-group"><label><span>Disable Zenith Flatten</span><input type="checkbox" checked={disableZenithFlatten} onChange={e => setDisableZenithFlatten(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Disable Horizon Theme</span><input type="checkbox" checked={disableHorizonTheme} onChange={e => setDisableHorizonTheme(e.target.checked)} /></label></div>
         <div className="control-group"><label><span>Horizon Diagnostics</span><input type="checkbox" checked={horizonDiagnostics} onChange={e => setHorizonDiagnostics(e.target.checked)} /></label></div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Freeze Band Start</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="50" max="120" step="1"
+                        value={freezeBandStartFov}
+                        onChange={e => setFreezeBandStartFov(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="50" max="120" step="1"
+                        value={freezeBandStartFov}
+                        onChange={e => setFreezeBandStartFov(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Freeze Band End</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="50" max="120" step="1"
+                        value={freezeBandEndFov}
+                        onChange={e => setFreezeBandEndFov(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="50" max="120" step="1"
+                        value={freezeBandEndFov}
+                        onChange={e => setFreezeBandEndFov(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Zenith Bias Start</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="50" max="120" step="1"
+                        value={zenithBiasStartFov}
+                        onChange={e => setZenithBiasStartFov(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="50" max="120" step="1"
+                        value={zenithBiasStartFov}
+                        onChange={e => setZenithBiasStartFov(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Vert Pan FOV Start</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="40" max="130" step="1"
+                        value={verticalPanDampStartFov}
+                        onChange={e => setVerticalPanDampStartFov(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="40" max="130" step="1"
+                        value={verticalPanDampStartFov}
+                        onChange={e => setVerticalPanDampStartFov(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Vert Pan FOV End</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="40" max="130" step="1"
+                        value={verticalPanDampEndFov}
+                        onChange={e => setVerticalPanDampEndFov(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="40" max="130" step="1"
+                        value={verticalPanDampEndFov}
+                        onChange={e => setVerticalPanDampEndFov(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Vert Pan Lat Start</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="0" max="89" step="1"
+                        value={verticalPanDampLatStartDeg}
+                        onChange={e => setVerticalPanDampLatStartDeg(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="0" max="89" step="1"
+                        value={verticalPanDampLatStartDeg}
+                        onChange={e => setVerticalPanDampLatStartDeg(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
+        <div className="control-group">
+            <label style={{ justifyContent: 'space-between', width: '100%' }}>
+                <span>Vert Pan Lat End</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                        type="number"
+                        min="0" max="89" step="1"
+                        value={verticalPanDampLatEndDeg}
+                        onChange={e => setVerticalPanDampLatEndDeg(Number(e.target.value))}
+                        style={{ width: 48, background: '#1a1a2e', color: '#fff', border: '1px solid #333', borderRadius: 4, padding: '1px 4px', fontSize: 11, textAlign: 'right' }}
+                    />
+                    <input
+                        type="range"
+                        min="0" max="89" step="1"
+                        value={verticalPanDampLatEndDeg}
+                        onChange={e => setVerticalPanDampLatEndDeg(Number(e.target.value))}
+                    />
+                </div>
+            </label>
+        </div>
         <div className="control-group">
             <label style={{ justifyContent: 'space-between', width: '100%' }}>
                 <span>Chapter Label Max FOV</span>
