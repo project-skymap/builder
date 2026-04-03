@@ -242,11 +242,12 @@ export default function GeneratePage() {
       } else if (msg.type === "done") {
         starsRef.current = msg.field.stars;
 
-        // Precompute edge fade per star
+        // Precompute edge fade per star (stars at r>1.0 are over-horizon, invisible)
         const fadeArr = new Float32Array(msg.field.stars.length);
         for (let i = 0; i < msg.field.stars.length; i++) {
           const s = msg.field.stars[i] as StarOutput;
           const projR = Math.sqrt(s.x * s.x + s.y * s.y);
+          if (projR >= 1.0) { fadeArr[i] = 0; continue; }
           fadeArr[i] = projR > 0.7 ? Math.max(0, (1 - projR) / 0.3) : 1;
         }
         edgeFadeRef.current = fadeArr;
@@ -355,7 +356,7 @@ export default function GeneratePage() {
       <div className="w-72 flex-shrink-0 flex flex-col gap-4 p-5 border-r border-white/10 overflow-y-auto">
         <div>
           <h1 className="text-sm font-semibold text-gray-200 tracking-widest uppercase">
-            Sky Generator v2
+            Sky Generator v2.1
           </h1>
           <p className="text-xs text-gray-500 mt-1">
             Drag to pan · Shift+drag to spin · Scroll to zoom · Double-click to reset view
@@ -389,9 +390,24 @@ export default function GeneratePage() {
             onChange={v => updateParam("bandAngle", v)}
             fmt={v => `${(v * 180 / Math.PI).toFixed(0)}\u00b0`} />
 
-          <Slider label="Edge falloff" value={params.edgeFalloffStart}
-            min={0.55} max={0.85} step={0.01}
+          <Slider label="Edge falloff start" value={params.edgeFalloffStart}
+            min={0.55} max={1.0} step={0.01}
             onChange={v => updateParam("edgeFalloffStart", v)} />
+
+          <Slider label="Contrast" value={params.contrastGamma}
+            min={1.0} max={3.0} step={0.05}
+            onChange={v => updateParam("contrastGamma", v)}
+            fmt={v => v.toFixed(2)} />
+
+          <Slider label="Void count" value={params.voidCount}
+            min={0} max={4} step={1}
+            onChange={v => updateParam("voidCount", Math.round(v))}
+            fmt={v => String(Math.round(v))} />
+
+          <Slider label="Void strength" value={params.voidStrength}
+            min={0} max={1} step={0.05}
+            onChange={v => updateParam("voidStrength", v)}
+            fmt={v => v.toFixed(2)} />
         </div>
 
         <div className="flex flex-col gap-3">
@@ -407,9 +423,14 @@ export default function GeneratePage() {
             fmt={v => String(Math.round(v))} />
 
           <Slider label="Close pairs" value={params.pairFraction}
-            min={0} max={0.08} step={0.002}
+            min={0} max={0.15} step={0.002}
             onChange={v => updateParam("pairFraction", v)}
             fmt={v => `${(v * 100).toFixed(1)}%`} />
+
+          <Slider label="Spacing jitter" value={params.spacingJitter}
+            min={0} max={1} step={0.05}
+            onChange={v => updateParam("spacingJitter", v)}
+            fmt={v => `\u00b1${(v * 100).toFixed(0)}%`} />
         </div>
 
         {/* Progress */}
