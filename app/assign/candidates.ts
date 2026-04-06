@@ -3,6 +3,9 @@
 // Scores are advisory only; never shown to the user as numbers.
 
 import type { SkyGraph, StarNode } from "./graph";
+import type { MomentumState } from "./momentum";
+import type { ShapeArchetype, ArchetypeConfig } from "./archetypes";
+import { ARCHETYPES, DEFAULT_ARCHETYPE } from "./archetypes";
 
 export interface CandidateMove {
   starId: number;
@@ -10,24 +13,35 @@ export interface CandidateMove {
   hint:   string;   // plain English, one short phrase
 }
 
+/** Optional context that enriches the scoring model. */
+export interface CandidateOptions {
+  /** Momentum derived from recent assignments in this book. */
+  momentum?:          MomentumState | null;
+  /** Active shape archetype for this book. */
+  archetype?:         ShapeArchetype;
+  /** Positions of all already-assigned stars in the current book. */
+  bookStarPositions?: { x: number; y: number }[];
+}
+
 // ---------------------------------------------------------------------------
 // Chapter candidates (within a book)
 // ---------------------------------------------------------------------------
 
 /**
- * Suggest the next star for the current chapter.
+ * Suggest up to 5 candidate stars for the next chapter.
  *
- * @param anchorStarId  The star of the most recently assigned chapter.
- *                      Null when no chapter has been assigned yet (Genesis 1).
- * @param assigned      Set of all currently assigned star IDs.
- * @param graph         The k-NN sky graph.
+ * @param anchorStarId     Most-recently assigned star. Null for the very first chapter.
+ * @param assigned         All currently assigned star IDs.
+ * @param graph            The k-NN sky graph.
  * @param remainingInBook  Chapters left in the current book (including this one).
+ * @param options          Optional momentum / archetype / book context.
  */
 export function getCandidates(
   anchorStarId:    number | null,
   assigned:        Set<number>,
   graph:           SkyGraph,
   remainingInBook: number,
+  options?:        CandidateOptions,
 ): CandidateMove[] {
   if (anchorStarId === null) {
     return getFirstCandidates(assigned, graph);
@@ -35,6 +49,18 @@ export function getCandidates(
 
   const anchor = graph[anchorStarId];
   if (!anchor) return [];
+
+  const momentum  = options?.momentum ?? null;
+  const archetype = ARCHETYPES[options?.archetype ?? DEFAULT_ARCHETYPE]!;
+
+  // Centroid of current book stars (for shape scoring)
+  const bookPos = options?.bookStarPositions ?? [];
+  const bookCentroid = bookPos.length > 0
+    ? {
+        x: bookPos.reduce((s, p) => s + p.x, 0) / bookPos.length,
+        y: bookPos.reduce((s, p) => s + p.y, 0) / bookPos.length,
+      }
+    : null;
 
   interface Scored {
     starId:           number;
@@ -54,18 +80,21 @@ export function getCandidates(
     if (assigned.has(nid) || seen.has(nid)) continue;
     seen.add(nid);
 
-    const neighbor        = graph[nid];
+    const neighbor = graph[nid];
     if (!neighbor) continue;
 
-    const isVoidCrossing  = dist > 2.5 * anchor.meanNeighborDist;
-    const freeNeighbors   = neighbor.neighbors.filter(
+    const isVoidCrossing = dist > 2.5 * anchor.meanNeighborDist;
+    const freeNeighbors  = neighbor.neighbors.filter(
       id => !assigned.has(id) && id !== anchorStarId,
     ).length;
-    const goodCapacity    = freeNeighbors >= Math.min(remainingInBook * 0.25, 2);
+    const goodCapacity = freeNeighbors >= Math.min(remainingInBook * 0.25, 2);
 
-    let score = 3.0;
-    if (isVoidCrossing) score -= 1.0;
-    if (!goodCapacity)  score -= 0.7;
+    let score = 2.5;
+    if (isVoidCrossing) score -= 0.8;
+    if (!goodCapacity)  score -= 0.5;
+
+    score += momentumBonus(neighbor, anchor, momentum, archetype.momentumWeight);
+    score += shapeBonus(neighbor, anchor, archetype, bookCentroid, 1.0);
 
     scored.push({ starId: nid, score, isVoidCrossing, isDirectNeighbor: true, goodCapacity });
   }
@@ -82,14 +111,20 @@ export function getCandidates(
         const nn = graph[nnid];
         if (!nn) continue;
 
-        const edgeDist        = Math.sqrt((anchor.x - nn.x) ** 2 + (anchor.y - nn.y) ** 2);
-        const isVoidCrossing  = edgeDist > 3.5 * anchor.meanNeighborDist;
-        const freeNeighbors   = nn.neighbors.filter(id => !assigned.has(id)).length;
-        const goodCapacity    = freeNeighbors >= Math.min(remainingInBook * 0.25, 2);
+        const edgeDist = Math.sqrt(
+          (anchor.x - nn.x) ** 2 + (anchor.y - nn.y) ** 2,
+        );
+        const isVoidCrossing = edgeDist > 3.5 * anchor.meanNeighborDist;
+        const freeNeighbors  = nn.neighbors.filter(id => !assigned.has(id)).length;
+        const goodCapacity   = freeNeighbors >= Math.min(remainingInBook * 0.25, 2);
 
-        let score = 1.5;
-        if (isVoidCrossing) score -= 0.8;
-        if (!goodCapacity)  score -= 0.5;
+        let score = 1.2;
+        if (isVoidCrossing) score -= 0.6;
+        if (!goodCapacity)  score -= 0.4;
+
+        // Momentum and shape have reduced influence for hop-2 candidates
+        score += momentumBonus(nn, anchor, momentum, archetype.momentumWeight) * 0.65;
+        score += shapeBonus(nn, anchor, archetype, bookCentroid, 0.65);
 
         scored.push({ starId: nnid, score, isVoidCrossing, isDirectNeighbor: false, goodCapacity });
       }
@@ -101,23 +136,22 @@ export function getCandidates(
   return scored.slice(0, 5).map((s, idx) => ({
     starId: s.starId,
     tier:   (idx < 3 ? 1 : 2) as 1 | 2,
-    hint:   hintFor(s.isVoidCrossing, s.isDirectNeighbor, s.goodCapacity),
+    hint:   hintFor(s.isVoidCrossing, s.isDirectNeighbor, s.goodCapacity, archetype.id),
   }));
 }
 
 // ---------------------------------------------------------------------------
-// First chapter candidates (Genesis 1 — no anchor)
+// First chapter candidates (no anchor)
 // ---------------------------------------------------------------------------
 
 function getFirstCandidates(assigned: Set<number>, graph: SkyGraph): CandidateMove[] {
   const unassigned = graph.filter(n => n && !assigned.has(n.id));
   if (unassigned.length === 0) return [];
 
-  // Three spatial regions; pick the densest unassigned star from each.
   const regions: Array<(n: StarNode) => boolean> = [
-    n => n.x <  0 && n.y < 0,  // upper-left
-    n => n.x >= 0 && n.y < 0,  // upper-right
-    n => n.y >= 0,              // lower half
+    n => n.x <  0 && n.y < 0,
+    n => n.x >= 0 && n.y < 0,
+    n => n.y >= 0,
   ];
 
   const picks: CandidateMove[] = [];
@@ -138,9 +172,8 @@ function getFirstCandidates(assigned: Set<number>, graph: SkyGraph): CandidateMo
 // ---------------------------------------------------------------------------
 
 /**
- * Suggest three starting stars for the next book.
- * Returns up to 3 candidates spread across near / moderate / far distances
- * from the just-completed book's star cluster.
+ * Suggest three starting stars for the next book spread across
+ * near / moderate / far distances from the just-completed cluster.
  */
 export function getTransitionCandidates(
   bookStarIds: number[],
@@ -148,10 +181,8 @@ export function getTransitionCandidates(
   graph:       SkyGraph,
 ): CandidateMove[] {
   const bookStarSet = new Set(bookStarIds);
-  const assignedSet = assigned;
 
-  // BFS outward from the completed book's stars
-  const distanceMap = new Map<number, number>(); // starId → hops from book
+  const distanceMap = new Map<number, number>();
   const visited     = new Set<number>(bookStarIds);
   let frontier      = bookStarIds.filter(id => graph[id]);
 
@@ -164,7 +195,7 @@ export function getTransitionCandidates(
         if (visited.has(nid)) continue;
         visited.add(nid);
         next.push(nid);
-        if (!assignedSet.has(nid) && !bookStarSet.has(nid)) {
+        if (!assigned.has(nid) && !bookStarSet.has(nid)) {
           distanceMap.set(nid, hop);
         }
       }
@@ -172,22 +203,16 @@ export function getTransitionCandidates(
     frontier = next;
   }
 
-  // Split into three distance tiers
-  const near:     number[] = [];
-  const moderate: number[] = [];
-  const far:      number[] = [];
-
+  const near: number[] = [], moderate: number[] = [], far: number[] = [];
   for (const [starId, hops] of distanceMap) {
-    if (hops <= 2)       near.push(starId);
-    else if (hops <= 5)  moderate.push(starId);
-    else                 far.push(starId);
+    if      (hops <= 2) near.push(starId);
+    else if (hops <= 5) moderate.push(starId);
+    else                far.push(starId);
   }
 
   const result: CandidateMove[] = [];
-
   const pick = (pool: number[], hint: string): void => {
     if (pool.length === 0) return;
-    // Prefer denser areas (smaller meanNeighborDist)
     pool.sort((a, b) =>
       (graph[a]?.meanNeighborDist ?? 1) - (graph[b]?.meanNeighborDist ?? 1),
     );
@@ -201,7 +226,6 @@ export function getTransitionCandidates(
   pick(moderate, "step into new territory");
   pick(far,      "begin elsewhere");
 
-  // Fill to 3 if we have fewer
   if (result.length < 3) {
     const all = [...near, ...moderate, ...far];
     for (const id of all) {
@@ -215,16 +239,78 @@ export function getTransitionCandidates(
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Scoring helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a bonus in approximately [−0.6, +0.6] based on how well
+ * the candidate continues the current momentum direction.
+ */
+function momentumBonus(
+  node:          StarNode,
+  anchor:        StarNode,
+  momentum:      MomentumState | null,
+  weight:        number,
+): number {
+  if (!momentum?.direction || weight <= 0) return 0;
+  const dx   = node.x - anchor.x;
+  const dy   = node.y - anchor.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 1e-6) return 0;
+  const alignment = (dx / dist) * momentum.direction.x + (dy / dist) * momentum.direction.y;
+  return weight * alignment * 0.6; // alignment ∈ [−1, 1]
+}
+
+/**
+ * Returns a bonus in [0, +0.5] based on how well the candidate fits
+ * the archetype's spatial intent (compactness, centripetal).
+ */
+function shapeBonus(
+  node:         StarNode,
+  anchor:       StarNode,
+  archetype:    ArchetypeConfig,
+  bookCentroid: { x: number; y: number } | null,
+  scale:        number,
+): number {
+  if (!bookCentroid || archetype.id === "free") return 0;
+
+  const dxC  = node.x - bookCentroid.x;
+  const dyC  = node.y - bookCentroid.y;
+  const distC = Math.sqrt(dxC * dxC + dyC * dyC);
+  const refR  = Math.max(anchor.meanNeighborDist * 4, 0.05);
+
+  if (archetype.centripetal > 0) {
+    // cluster: reward proximity to the book centroid
+    const s = Math.max(0, 1 - distC / refR);
+    return archetype.centripetal * 0.45 * s * scale;
+  } else if (archetype.centripetal < 0) {
+    // burst: reward distance from the centroid
+    const s = Math.min(1, distC / refR);
+    return Math.abs(archetype.centripetal) * 0.45 * s * scale;
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Hint generation
 // ---------------------------------------------------------------------------
 
 function hintFor(
   isVoidCrossing:   boolean,
   isDirectNeighbor: boolean,
   goodCapacity:     boolean,
+  archetype:        ShapeArchetype,
 ): string {
-  if (isVoidCrossing)                        return "crosses into open space";
-  if (!goodCapacity)                         return "limited room ahead";
-  if (isDirectNeighbor)                      return "continues naturally";
-  return "nearby, good room ahead";
+  if (isVoidCrossing) return "crosses into open space";
+  if (!goodCapacity)  return "limited room ahead";
+
+  if (!isDirectNeighbor) return "nearby, good room ahead";
+
+  switch (archetype) {
+    case "arc":     return "follows the arc";
+    case "cluster": return "pulls toward centre";
+    case "chain":   return "continues the chain";
+    case "burst":   return "bursts outward";
+    default:        return "continues naturally";
+  }
 }

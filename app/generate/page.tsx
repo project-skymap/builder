@@ -152,6 +152,19 @@ export default function GeneratePage() {
       ctx.fillStyle = "#05060a";
       ctx.fillRect(0, 0, W, H);
 
+      // Star-field disc — slightly blue-tinted so inside/outside contrast is obvious
+      ctx.beginPath();
+      ctx.arc(scx, scy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = "#090d1a";
+      ctx.fill();
+
+      // Subtle boundary ring
+      ctx.beginPath();
+      ctx.arc(scx, scy, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(80,100,160,0.35)";
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
+
       const stars    = starsRef.current;
       const fadeArr  = edgeFadeRef.current;
       const cos      = Math.cos(spin);
@@ -175,7 +188,7 @@ export default function GeneratePage() {
           // Bright: glow + dot
           const glowR = 8;
           const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-          grad.addColorStop(0, `rgba(255,240,210,${(0.25 * fade).toFixed(3)})`);
+          grad.addColorStop(0, `rgba(255,240,210,${(0.45 * fade).toFixed(3)})`);
           grad.addColorStop(1, "rgba(255,240,210,0)");
           ctx.fillStyle = grad;
           ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
@@ -187,7 +200,7 @@ export default function GeneratePage() {
         } else if (mag < 3.5) {
           const glowR = 5;
           const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-          grad.addColorStop(0, `rgba(255,240,210,${(0.25 * fade).toFixed(3)})`);
+          grad.addColorStop(0, `rgba(255,240,210,${(0.40 * fade).toFixed(3)})`);
           grad.addColorStop(1, "rgba(255,240,210,0)");
           ctx.fillStyle = grad;
           ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
@@ -199,17 +212,17 @@ export default function GeneratePage() {
         } else if (mag < 4.5) {
           ctx.beginPath();
           ctx.arc(sx, sy, 1.4, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(220,230,255,${(0.95 * fade).toFixed(3)})`;
+          ctx.fillStyle = `rgba(220,230,255,${(0.97 * fade).toFixed(3)})`;
           ctx.fill();
         } else if (mag < 5.5) {
           ctx.beginPath();
           ctx.arc(sx, sy, 1.0, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(210,220,255,${(0.85 * fade).toFixed(3)})`;
+          ctx.fillStyle = `rgba(210,220,255,${(0.92 * fade).toFixed(3)})`;
           ctx.fill();
         } else {
           ctx.beginPath();
           ctx.arc(sx, sy, 0.7, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(200,210,255,${(0.65 * fade).toFixed(3)})`;
+          ctx.fillStyle = `rgba(200,210,255,${(0.85 * fade).toFixed(3)})`;
           ctx.fill();
         }
       }
@@ -248,7 +261,7 @@ export default function GeneratePage() {
           const s = msg.field.stars[i] as StarOutput;
           const projR = Math.sqrt(s.x * s.x + s.y * s.y);
           if (projR >= 1.0) { fadeArr[i] = 0; continue; }
-          fadeArr[i] = projR > 0.7 ? Math.max(0, (1 - projR) / 0.3) : 1;
+          fadeArr[i] = projR > 0.88 ? Math.max(0, (1 - projR) / 0.12) : 1;
         }
         edgeFadeRef.current = fadeArr;
 
