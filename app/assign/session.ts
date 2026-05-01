@@ -2,6 +2,7 @@
 
 import type { SkyField } from "@project-skymap/library";
 import type { ShapeArchetype } from "./archetypes";
+import { CANON } from "./canon";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,6 +34,7 @@ export interface Session {
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = "skymap-assign-session";
+const HANDOFF_KEY = "skymap-assign-handoff";
 
 // Persisted shape — union of new + legacy (v1 used `history: number[]`).
 interface Persisted {
@@ -136,6 +138,30 @@ export function loadSession(): Session | null {
   }
 }
 
+export function stageGeneratedSkyField(skyField: SkyField): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(HANDOFF_KEY, JSON.stringify(skyField));
+  } catch {
+    // Ignore storage failures and fall back to manual import/export.
+  }
+}
+
+export function consumeGeneratedSkyField(): SkyField | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(HANDOFF_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(HANDOFF_KEY);
+    const data = JSON.parse(raw) as SkyField;
+    if (!data.stars || !Array.isArray(data.stars)) return null;
+    return data;
+  } catch {
+    sessionStorage.removeItem(HANDOFF_KEY);
+    return null;
+  }
+}
+
 export function clearSession(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEY);
@@ -186,6 +212,21 @@ export function deleteSnapshot(session: Session, index: number): Session {
 // ---------------------------------------------------------------------------
 // Export / import
 // ---------------------------------------------------------------------------
+
+export function exportAssignments(session: Session): void {
+  const lean: Record<string, number> = {};
+  for (const [chStr, starId] of Object.entries(session.assignments)) {
+    const chapter = CANON[Number(chStr)];
+    if (chapter) lean[`${chapter.bookKey} ${chapter.chapterNumber}`] = starId;
+  }
+  const blob = new Blob([JSON.stringify(lean, null, 2)], { type: "application/json" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = "skymap-assignments.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function exportSession(session: Session): void {
   const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });

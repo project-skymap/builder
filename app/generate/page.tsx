@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DEFAULT_SKY_PARAMS } from "@project-skymap/library";
 import type { SkyGenParams, StarOutput, SkyField, SkyMetrics } from "@project-skymap/library";
 import type { WorkerRequest, WorkerResponse } from "./worker";
+import { BuilderSection, BuilderWorkspace } from "../components/BuilderWorkspace";
+import { stageGeneratedSkyField } from "../assign/session";
 
 // ---------------------------------------------------------------------------
 // Slider
@@ -90,9 +93,13 @@ function stageLabel(stage: string): string {
 // ---------------------------------------------------------------------------
 
 export default function GeneratePage() {
+  const AUTO_REGENERATE_DELAY_MS = 160;
+  const router = useRouter();
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const workerRef  = useRef<Worker | null>(null);
   const animRef    = useRef<number>(0);
+  const autoRunTimeoutRef = useRef<number | null>(null);
+  const hasMountedRef = useRef(false);
 
   // Stars from last completed generation
   const starsRef   = useRef<StarOutput[]>([]);
@@ -115,6 +122,7 @@ export default function GeneratePage() {
   const [metrics, setMetrics]             = useState<SkyMetrics | null>(null);
   const [starCount, setStarCount]         = useState(0);
   const [exported, setExported]           = useState(false);
+  const [autoRegeneratePending, setAutoRegeneratePending] = useState(false);
 
   // Precomputed per-star edge fade (invariant under spin)
   const edgeFadeRef = useRef<Float32Array>(new Float32Array(0));
@@ -237,6 +245,12 @@ export default function GeneratePage() {
   // -------------------------------------------------------------------------
 
   const runGeneration = useCallback((p: SkyGenParams) => {
+    if (autoRunTimeoutRef.current !== null) {
+      window.clearTimeout(autoRunTimeoutRef.current);
+      autoRunTimeoutRef.current = null;
+    }
+    setAutoRegeneratePending(false);
+
     // Terminate any existing worker
     workerRef.current?.terminate();
     setGenerating(true);
@@ -279,6 +293,35 @@ export default function GeneratePage() {
   useEffect(() => {
     runGeneration(DEFAULT_SKY_PARAMS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+
+    setAutoRegeneratePending(true);
+    autoRunTimeoutRef.current = window.setTimeout(() => {
+      autoRunTimeoutRef.current = null;
+      runGeneration(paramsRef.current);
+    }, AUTO_REGENERATE_DELAY_MS);
+
+    return () => {
+      if (autoRunTimeoutRef.current !== null) {
+        window.clearTimeout(autoRunTimeoutRef.current);
+        autoRunTimeoutRef.current = null;
+      }
+    };
+  }, [params, runGeneration]);
+
+  useEffect(() => {
+    return () => {
+      if (autoRunTimeoutRef.current !== null) {
+        window.clearTimeout(autoRunTimeoutRef.current);
+      }
+      workerRef.current?.terminate();
+    };
   }, []);
 
   // -------------------------------------------------------------------------
@@ -358,172 +401,187 @@ export default function GeneratePage() {
     setExported(true);
   }, [metrics]);
 
+  const handleAssign = useCallback(() => {
+    if (starsRef.current.length === 0 || generating) return;
+    const field: SkyField = {
+      version: 2,
+      params: paramsRef.current,
+      stars: starsRef.current,
+      metrics: metrics ?? {
+        clusterDominanceScore: 0,
+        nearestNeighbourCV: 0,
+        maxVoidRadius: 0,
+        edgeGradientRatio: 0,
+      },
+    };
+    stageGeneratedSkyField(field);
+    router.push("/assign");
+  }, [generating, metrics, router]);
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
 
   return (
-    <div className="flex h-screen w-screen bg-[#05060a] text-white overflow-hidden">
-
-      {/* Left panel */}
-      <div className="w-72 flex-shrink-0 flex flex-col gap-4 p-5 border-r border-white/10 overflow-y-auto">
-        <div>
-          <h1 className="text-sm font-semibold text-gray-200 tracking-widest uppercase">
-            Sky Generator v2.1
-          </h1>
-          <p className="text-xs text-gray-500 mt-1">
-            Drag to pan · Shift+drag to spin · Scroll to zoom · Double-click to reset view
+    <BuilderWorkspace
+      route="generate"
+      title="Builder"
+      subtitle="Generate a natural sky field, tune it live, then hand the result into assignment."
+      sidebar={
+        <>
+          <p className="text-xs leading-relaxed text-white/45">
+            Drag to pan. Shift-drag to spin. Scroll to zoom. Double-click to reset the view.
           </p>
-        </div>
+          <p className="text-xs text-indigo-300/70">
+            Field updates automatically while you adjust controls.
+          </p>
 
-        {/* Seed */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-400">Seed</label>
-          <input
-            type="number" value={params.seed}
-            onChange={e => updateParam("seed", parseInt(e.target.value) || 0)}
-            className="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white w-full"
-          />
-        </div>
-
-        {/* Sliders */}
-        <div className="flex flex-col gap-3">
-          <p className="text-xs text-gray-500 uppercase tracking-widest">Field</p>
-
-          <Slider label="Warp" value={params.warpStrength}
-            min={0} max={0.8} step={0.01}
-            onChange={v => updateParam("warpStrength", v)} />
-
-          <Slider label="Band" value={params.bandStrength}
-            min={0} max={0.3} step={0.005}
-            onChange={v => updateParam("bandStrength", v)} />
-
-          <Slider label="Band angle" value={params.bandAngle}
-            min={0} max={Math.PI} step={0.01}
-            onChange={v => updateParam("bandAngle", v)}
-            fmt={v => `${(v * 180 / Math.PI).toFixed(0)}\u00b0`} />
-
-          <Slider label="Edge falloff start" value={params.edgeFalloffStart}
-            min={0.55} max={1.0} step={0.01}
-            onChange={v => updateParam("edgeFalloffStart", v)} />
-
-          <Slider label="Contrast" value={params.contrastGamma}
-            min={1.0} max={3.0} step={0.05}
-            onChange={v => updateParam("contrastGamma", v)}
-            fmt={v => v.toFixed(2)} />
-
-          <Slider label="Void count" value={params.voidCount}
-            min={0} max={4} step={1}
-            onChange={v => updateParam("voidCount", Math.round(v))}
-            fmt={v => String(Math.round(v))} />
-
-          <Slider label="Void strength" value={params.voidStrength}
-            min={0} max={1} step={0.05}
-            onChange={v => updateParam("voidStrength", v)}
-            fmt={v => v.toFixed(2)} />
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <p className="text-xs text-gray-500 uppercase tracking-widest">Placement</p>
-
-          <Slider label="Spacing" value={params.baseSeparation}
-            min={0.018} max={0.04} step={0.0005}
-            onChange={v => updateParam("baseSeparation", v)} />
-
-          <Slider label="Relaxation passes" value={params.relaxIterations}
-            min={0} max={40} step={1}
-            onChange={v => updateParam("relaxIterations", Math.round(v))}
-            fmt={v => String(Math.round(v))} />
-
-          <Slider label="Close pairs" value={params.pairFraction}
-            min={0} max={0.15} step={0.002}
-            onChange={v => updateParam("pairFraction", v)}
-            fmt={v => `${(v * 100).toFixed(1)}%`} />
-
-          <Slider label="Spacing jitter" value={params.spacingJitter}
-            min={0} max={1} step={0.05}
-            onChange={v => updateParam("spacingJitter", v)}
-            fmt={v => `\u00b1${(v * 100).toFixed(0)}%`} />
-        </div>
-
-        {/* Progress */}
-        {generating && (
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-indigo-300">{stageLabel(progressStage)}</p>
-            <div className="w-full h-1 bg-white/10 rounded overflow-hidden">
-              <div
-                className="h-full bg-indigo-500 transition-all duration-100"
-                style={{ width: `${(progressPct * 100).toFixed(1)}%` }}
+          <BuilderSection label="Seed">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-400">Seed</label>
+              <input
+                type="number" value={params.seed}
+                onChange={e => updateParam("seed", parseInt(e.target.value) || 0)}
+                className="w-full rounded border border-white/10 bg-white/5 px-2 py-1 text-sm text-white"
               />
             </div>
-          </div>
-        )}
+          </BuilderSection>
 
-        {/* Buttons */}
-        <div className="flex flex-col gap-2">
-          <button onClick={handleGenerate} disabled={generating}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
-                       text-white text-sm font-medium py-2 rounded transition-colors">
-            {generating ? "Generating\u2026" : "Generate"}
-          </button>
-          <button onClick={handleExport} disabled={generating || starCount === 0}
-            className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40
-                       text-white text-sm font-medium py-2 rounded transition-colors">
-            Export skyfield.json
-          </button>
-        </div>
+          <BuilderSection label="Field">
+            <Slider label="Warp" value={params.warpStrength}
+              min={0} max={0.8} step={0.01}
+              onChange={v => updateParam("warpStrength", v)} />
 
-        {/* Stats */}
-        <div className="text-xs text-gray-600 space-y-1">
-          <div className="flex justify-between">
-            <span>Stars placed</span>
-            <span className="text-gray-400">{starCount.toLocaleString()}</span>
-          </div>
-          {exported && (
-            <div className="flex justify-between">
-              <span>Exported</span>
-              <span className="text-emerald-400">skyfield.json</span>
+            <Slider label="Band" value={params.bandStrength}
+              min={0} max={0.3} step={0.005}
+              onChange={v => updateParam("bandStrength", v)} />
+
+            <Slider label="Band angle" value={params.bandAngle}
+              min={0} max={Math.PI} step={0.01}
+              onChange={v => updateParam("bandAngle", v)}
+              fmt={v => `${(v * 180 / Math.PI).toFixed(0)}\u00b0`} />
+
+            <Slider label="Edge falloff start" value={params.edgeFalloffStart}
+              min={0.55} max={1.0} step={0.01}
+              onChange={v => updateParam("edgeFalloffStart", v)} />
+
+            <Slider label="Contrast" value={params.contrastGamma}
+              min={1.0} max={3.0} step={0.05}
+              onChange={v => updateParam("contrastGamma", v)}
+              fmt={v => v.toFixed(2)} />
+
+            <Slider label="Void count" value={params.voidCount}
+              min={0} max={4} step={1}
+              onChange={v => updateParam("voidCount", Math.round(v))}
+              fmt={v => String(Math.round(v))} />
+
+            <Slider label="Void strength" value={params.voidStrength}
+              min={0} max={1} step={0.05}
+              onChange={v => updateParam("voidStrength", v)}
+              fmt={v => v.toFixed(2)} />
+          </BuilderSection>
+
+          <BuilderSection label="Placement">
+            <Slider label="Spacing" value={params.baseSeparation}
+              min={0.018} max={0.04} step={0.0005}
+              onChange={v => updateParam("baseSeparation", v)} />
+
+            <Slider label="Relaxation passes" value={params.relaxIterations}
+              min={0} max={40} step={1}
+              onChange={v => updateParam("relaxIterations", Math.round(v))}
+              fmt={v => String(Math.round(v))} />
+
+            <Slider label="Close pairs" value={params.pairFraction}
+              min={0} max={0.15} step={0.002}
+              onChange={v => updateParam("pairFraction", v)}
+              fmt={v => `${(v * 100).toFixed(1)}%`} />
+
+            <Slider label="Spacing jitter" value={params.spacingJitter}
+              min={0} max={1} step={0.05}
+              onChange={v => updateParam("spacingJitter", v)}
+              fmt={v => `\u00b1${(v * 100).toFixed(0)}%`} />
+          </BuilderSection>
+
+          <BuilderSection label="Status">
+            {generating && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-indigo-300">{stageLabel(progressStage)}</p>
+                <div className="h-1 w-full overflow-hidden rounded bg-white/10">
+                  <div
+                    className="h-full bg-indigo-500 transition-all duration-100"
+                    style={{ width: `${(progressPct * 100).toFixed(1)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            {!generating && autoRegeneratePending && (
+              <p className="text-xs text-indigo-300/70">Updating sky…</p>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <button onClick={handleGenerate} disabled={generating}
+                className="rounded bg-indigo-600 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40">
+                {generating ? "Generating\u2026" : "Regenerate now"}
+              </button>
+              <button onClick={handleAssign} disabled={generating || starCount === 0}
+                className="rounded border border-amber-400/30 bg-amber-500/12 py-2 text-sm font-medium text-amber-100 transition-colors hover:bg-amber-500/20 disabled:opacity-40">
+                Continue to Assign
+              </button>
+              <button onClick={handleExport} disabled={generating || starCount === 0}
+                className="rounded bg-emerald-700 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-600 disabled:opacity-40">
+                Export skyfield.json
+              </button>
             </div>
+
+            <div className="space-y-1 text-xs text-gray-600">
+              <div className="flex justify-between">
+                <span>Stars placed</span>
+                <span className="text-gray-400">{starCount.toLocaleString()}</span>
+              </div>
+              {exported && (
+                <div className="flex justify-between">
+                  <span>Exported</span>
+                  <span className="text-emerald-400">skyfield.json</span>
+                </div>
+              )}
+            </div>
+          </BuilderSection>
+
+          {metrics && !generating && (
+            <BuilderSection label="Metrics">
+              <MetricRow
+                label="Cluster dominance"
+                value={metrics.clusterDominanceScore}
+                fmt={v => v.toFixed(2)}
+                color={metricsCDS(metrics.clusterDominanceScore)}
+              />
+              <MetricRow
+                label="NN uniformity (CV)"
+                value={metrics.nearestNeighbourCV}
+                fmt={v => v.toFixed(3)}
+                color={metricsNNCV(metrics.nearestNeighbourCV)}
+              />
+              <MetricRow
+                label="Max void radius"
+                value={metrics.maxVoidRadius}
+                fmt={v => v.toFixed(3)}
+                color={metricsVoid(metrics.maxVoidRadius)}
+              />
+              <MetricRow
+                label="Edge gradient ratio"
+                value={metrics.edgeGradientRatio}
+                fmt={v => v.toFixed(3)}
+                color="yellow"
+              />
+            </BuilderSection>
           )}
-        </div>
-
-        {/* Metrics */}
-        {metrics && !generating && (
-          <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
-            <p className="text-xs text-gray-500 uppercase tracking-widest">Metrics</p>
-            <MetricRow
-              label="Cluster dominance"
-              value={metrics.clusterDominanceScore}
-              fmt={v => v.toFixed(2)}
-              color={metricsCDS(metrics.clusterDominanceScore)}
-            />
-            <MetricRow
-              label="NN uniformity (CV)"
-              value={metrics.nearestNeighbourCV}
-              fmt={v => v.toFixed(3)}
-              color={metricsNNCV(metrics.nearestNeighbourCV)}
-            />
-            <MetricRow
-              label="Max void radius"
-              value={metrics.maxVoidRadius}
-              fmt={v => v.toFixed(3)}
-              color={metricsVoid(metrics.maxVoidRadius)}
-            />
-            <MetricRow
-              label="Edge gradient ratio"
-              value={metrics.edgeGradientRatio}
-              fmt={v => v.toFixed(3)}
-              color="yellow"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Canvas */}
-      <div className="flex-1 relative">
+        </>
+      }
+    >
+      <div className="relative h-full">
         <canvas
           ref={canvasRef}
-          className="w-full h-full cursor-grab active:cursor-grabbing"
+          className="h-full w-full cursor-grab active:cursor-grabbing"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -532,11 +590,11 @@ export default function GeneratePage() {
           onDoubleClick={onDoubleClick}
         />
         {generating && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="text-gray-500 text-sm">{stageLabel(progressStage)}</span>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <span className="text-sm text-gray-500">{stageLabel(progressStage)}</span>
           </div>
         )}
       </div>
-    </div>
+    </BuilderWorkspace>
   );
 }

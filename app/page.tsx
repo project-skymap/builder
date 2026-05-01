@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useMemo, useState, useRef, useEffect } from "react";
-import type { SceneNode, StarMapConfig, StarArrangement, StarMapHandle, BibleJSON, HierarchyFilter, HorizonThemeConfig } from "@project-skymap/library";
+import type { SceneNode, SceneModel, StarMapConfig, StarArrangement, StarMapHandle, BibleJSON, HierarchyFilter, HorizonThemeConfig } from "@project-skymap/library";
 import { StarMap, bibleToSceneModel, generateArrangement, defaultGenerateOptions } from "@project-skymap/library";
 import bible from "../public/bible.json";
 import initialArrangement from "./arrangement.json";
 import groups from "./groups.json";
 import labelColors from "../public/colours.json";
 import horizonPresetData from "../public/horizons/biblical-presets.v1.json";
+import type { Session } from "./assign/session";
+import { loadSession, saveSession, createSession, importSkyField as importSkyFieldFile } from "./assign/session";
+import { CANON, BOOKS } from "./assign/canon";
 
 const BOOK_COLORS: Record<string, string> = {};
 
@@ -36,6 +39,90 @@ bible.testaments.forEach(t =>
   )
 );
 
+// ---------------------------------------------------------------------------
+// Assignment mode helpers
+// ---------------------------------------------------------------------------
+
+function buildVerseCounts(): number[] {
+  const arr: number[] = [];
+  for (const testament of (bible as BibleJSON).testaments) {
+    for (const division of testament.divisions) {
+      for (const book of division.books) {
+        const verses = (book as any).verses as number[] | undefined;
+        for (let c = 0; c < book.chapters; c++) {
+          arr.push(verses?.[c] ?? 1);
+        }
+      }
+    }
+  }
+  return arr;
+}
+
+const VERSE_COUNTS = buildVerseCounts();
+
+const assignNodeId = {
+  testament: (t: string)               => `T:${t}`,
+  division:  (t: string, d: string)    => `D:${t}:${d}`,
+  book:      (key: string)             => `B:${key}`,
+  chapter:   (key: string, ch: number) => `C:${key}:${ch}`,
+};
+
+function chapterNodeToGlobalIndex(id: string): number | undefined {
+  const m = id.match(/^C:([^:]+):(\d+)$/);
+  if (!m) return undefined;
+  const book = BOOKS.find(b => b.key === m[1]);
+  if (!book) return undefined;
+  const gi = book.startGlobalIndex + Number(m[2]) - 1;
+  return gi >= book.startGlobalIndex && gi <= book.endGlobalIndex ? gi : undefined;
+}
+
+function buildAssignedScene(session: Session): { model: SceneModel; arrangement: StarArrangement } {
+  const nodes: SceneNode[] = [];
+  const arrangement: StarArrangement = {};
+  const addedT = new Set<string>();
+  const addedD = new Set<string>();
+  const addedB = new Set<string>();
+
+  for (const [chStr, starId] of Object.entries(session.assignments)) {
+    const chIdx   = Number(chStr);
+    const chapter = CANON[chIdx];
+    if (!chapter) continue;
+    const star = session.skyField.stars[starId as unknown as number];
+    if (!star) continue;
+
+    const tid = assignNodeId.testament(chapter.testament);
+    if (!addedT.has(tid)) {
+      addedT.add(tid);
+      nodes.push({ id: tid, label: chapter.testament, level: 0, meta: { testament: chapter.testament } });
+    }
+    const did = assignNodeId.division(chapter.testament, chapter.divisionName);
+    if (!addedD.has(did)) {
+      addedD.add(did);
+      nodes.push({ id: did, label: chapter.divisionName, level: 1, parent: tid,
+        meta: { testament: chapter.testament, division: chapter.divisionName } });
+    }
+    const bid = assignNodeId.book(chapter.bookKey);
+    if (!addedB.has(bid)) {
+      addedB.add(bid);
+      nodes.push({ id: bid, label: chapter.bookName, level: 2, parent: did,
+        meta: { testament: chapter.testament, division: chapter.divisionName,
+                bookKey: chapter.bookKey, book: chapter.bookName } });
+    }
+    const cid = assignNodeId.chapter(chapter.bookKey, chapter.chapterNumber);
+    nodes.push({
+      id: cid, label: `${chapter.bookName} ${chapter.chapterNumber}`,
+      level: 3, parent: bid,
+      weight: VERSE_COUNTS[chIdx] ?? 1,
+      meta: { testament: chapter.testament, division: chapter.divisionName,
+              bookKey: chapter.bookKey, book: chapter.bookName, chapter: chapter.chapterNumber },
+    });
+    arrangement[cid] = { position: [star.x3 * 2000, star.y3 * 2000, star.z3 * 2000] };
+  }
+
+  return { model: { nodes }, arrangement };
+}
+
+// ---------------------------------------------------------------------------
 // Define a "Correct Answer" for testing
 const ANSWER = {
   testament: "New",
@@ -50,7 +137,8 @@ export default function Page() {
   const presetDefaultThemeId = (horizonPresetData.defaultThemeId ?? "") as string;
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>(undefined);
   const [arrangement, setArrangement] = useState<StarArrangement>(initialArrangement as unknown as StarArrangement);
-  const [isEditable, setIsEditable] = useState(false);
+  const [mode, setMode] = useState<"view" | "edit" | "assign">("view");
+  const isEditable = mode === "edit";
   const [showBookLabels, setShowBookLabels] = useState(true);
   const [showDivisionLabels, setShowDivisionLabels] = useState(false);
   const [showChapterLabels, setShowChapterLabels] = useState(true);
@@ -106,6 +194,11 @@ export default function Page() {
   const touchStartY = useRef<number | null>(null);
   const mapRef = useRef<StarMapHandle>(null);
 
+  // Assignment mode state
+  const [assignSession,        setAssignSession]        = useState<Session | null>(null);
+  const [selectedAssignNode,   setSelectedAssignNode]   = useState<SceneNode | null>(null);
+  const [selectedMarkerStarId, setSelectedMarkerStarId] = useState<number | null>(null);
+
   // Show gesture hints on first mobile visit
   useEffect(() => {
     const isMobile = window.matchMedia('(max-width: 768px)').matches;
@@ -123,6 +216,143 @@ export default function Page() {
   const handleLongPress = useCallback((node: SceneNode | null, x: number, y: number) => {
     setLongPressInfo({ node, x, y });
   }, []);
+
+  // ── Assignment mode lifecycle ──────────────────────────────────────────────
+
+  // Load session from localStorage when first entering assign mode
+  useEffect(() => {
+    if (mode === "assign" && assignSession === null) {
+      setAssignSession(loadSession());
+    }
+  }, [mode, assignSession]);
+
+  // Persist every time the session changes
+  useEffect(() => {
+    if (assignSession) saveSession(assignSession);
+  }, [assignSession]);
+
+  // Build partial SceneModel + arrangement from assigned chapters
+  const assignedScene = useMemo(() => {
+    if (mode !== "assign" || !assignSession?.skyField) return null;
+    return buildAssignedScene(assignSession);
+  }, [mode, assignSession]);
+
+  // Unassigned star positions → orange markers
+  const { markerPositions, markerStarIds } = useMemo(() => {
+    if (mode !== "assign" || !assignSession?.skyField)
+      return { markerPositions: [] as Array<[number,number,number]>, markerStarIds: [] as number[] };
+    const assigned = new Set<number>(Object.values(assignSession.assignments) as number[]);
+    const positions: Array<[number,number,number]> = [];
+    const ids: number[] = [];
+    for (const star of assignSession.skyField.stars) {
+      if (!assigned.has(star.id)) {
+        positions.push([star.x3 * 2000, star.y3 * 2000, star.z3 * 2000]);
+        ids.push(star.id);
+      }
+    }
+    return { markerPositions: positions, markerStarIds: ids };
+  }, [mode, assignSession]);
+
+  // starId → chapterGlobalIndex (for assigned-star info panel)
+  const assignStarToChapter = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const [ch, st] of Object.entries(assignSession?.assignments ?? {}))
+      m.set(st as unknown as number, Number(ch));
+    return m;
+  }, [assignSession]);
+
+  // Assign config — replaces the normal config while in assign mode
+  const assignConfig = useMemo<StarMapConfig | null>(() => {
+    if (!assignedScene) return null;
+    return {
+      model:       assignedScene.model,
+      arrangement: assignedScene.arrangement,
+      markerPositions,
+      layout: { algorithm: "phyllotaxis", radius: 2000 },
+      starSizeExponent:         4.0,
+      starSizeScale:            6.0,
+      starSizeWeightPercentile: 1.0,
+      starZoomReveal:           false,
+      showBookLabels:     false,
+      showChapterLabels:  false,
+      showDivisionLabels: false,
+      showGroupLabels:    false,
+      showAtmosphere,
+      showMoon,
+      showSunrise:       false,
+      showMilkyWay:      false,
+      showBackdropStars: false,
+      projection,
+      fitProjection: true,
+    };
+  }, [assignedScene, markerPositions, showAtmosphere, showMoon, projection]);
+
+  // ── Assignment handlers ────────────────────────────────────────────────────
+
+  const handleMarkerSelect = useCallback((index: number) => {
+    const starId = markerStarIds[index];
+    if (starId === undefined) return;
+    setSelectedMarkerStarId(starId);
+    setSelectedAssignNode(null);
+  }, [markerStarIds]);
+
+  const handleAssign = useCallback((chapterGlobalIndex: number, starId: number) => {
+    setAssignSession(prev => {
+      if (!prev) return prev;
+      const next: Record<number, number> = {};
+      for (const [ch, st] of Object.entries(prev.assignments))
+        if (Number(ch) !== chapterGlobalIndex) next[Number(ch)] = st as unknown as number;
+      next[chapterGlobalIndex] = starId;
+      return { ...prev, assignments: next };
+    });
+    setSelectedMarkerStarId(null);
+  }, []);
+
+  const handleDeassign = useCallback(() => {
+    const chIdx =
+      selectedAssignNode
+        ? chapterNodeToGlobalIndex(selectedAssignNode.id)
+        : selectedMarkerStarId !== null
+          ? assignStarToChapter.get(selectedMarkerStarId)
+          : undefined;
+    if (chIdx === undefined) return;
+    setAssignSession(prev => {
+      if (!prev) return prev;
+      const { [chIdx]: _removed, ...rest } = prev.assignments;
+      return { ...prev, assignments: rest };
+    });
+    setSelectedAssignNode(null);
+    setSelectedMarkerStarId(null);
+  }, [selectedAssignNode, selectedMarkerStarId, assignStarToChapter]);
+
+  const handleImportAssignSkyField = useCallback(async (file: File) => {
+    try {
+      const skyField = await importSkyFieldFile(file);
+      setAssignSession(createSession(skyField));
+    } catch { /* invalid file */ }
+  }, []);
+
+  const handleExportAssignmentArrangement = useCallback(() => {
+    if (!assignSession?.skyField) return;
+    const arr: StarArrangement = {};
+    for (const [chStr, starId] of Object.entries(assignSession.assignments)) {
+      const chIdx   = Number(chStr);
+      const chapter = CANON[chIdx];
+      if (!chapter) continue;
+      const star = assignSession.skyField.stars[starId as unknown as number];
+      if (!star) continue;
+      arr[assignNodeId.chapter(chapter.bookKey, chapter.chapterNumber)] = {
+        position: [star.x3 * 2000, star.y3 * 2000, star.z3 * 2000],
+      };
+    }
+    const blob = new Blob([JSON.stringify(arr, null, 2)], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = "arrangement.json"; a.click();
+    URL.revokeObjectURL(url);
+  }, [assignSession]);
+
+  // ── End assignment mode ────────────────────────────────────────────────────
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/constellations.json`)
@@ -264,6 +494,15 @@ export default function Page() {
   );
 
   const handleSelect = useCallback((node: SceneNode) => {
+    // Assign mode — selecting an assigned chapter star
+    if (mode === "assign") {
+      if (node.level === 3) {
+        setSelectedAssignNode(node);
+        setSelectedMarkerStarId(null);
+      }
+      return;
+    }
+
     // Order Reveal Interaction
     if (node && (node.level === 2 || node.level === 3)) {
         const bookId = node.level === 2 ? node.id : node.parent!;
@@ -276,7 +515,7 @@ export default function Page() {
     if (!solved && node.level === 3) {
         setSelectedGuess(node);
     }
-  }, [solved]);
+  }, [mode, solved]);
 
   const handleSubmitGuess = useCallback(() => {
     if (!selectedGuess || solved) return;
@@ -907,29 +1146,192 @@ export default function Page() {
 
         <div className="divider"></div>
 
-        <button 
-            onClick={() => setIsEditable(!isEditable)}
-            style={{ background: isEditable ? "#7f1d1d" : "#1e3a8a", borderColor: isEditable ? "#ef4444" : "#3b82f6" }}
-        >
-            {isEditable ? "Stop Editing" : "Edit Stars"}
-        </button>
-        
-        {isEditable && (
-            <div style={{ marginTop: 10 }}>
+        {/* Mode switcher */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+            {(["view", "edit", "assign"] as const).map(m => (
+                <button
+                    key={m}
+                    onClick={() => setMode(m)}
+                    style={{
+                        flex: 1,
+                        fontSize: 11,
+                        padding: '4px 2px',
+                        background: mode === m
+                            ? m === "edit" ? "#7f1d1d" : m === "assign" ? "#1a3a1a" : "#1e3a8a"
+                            : "#1f2937",
+                        borderColor: mode === m
+                            ? m === "edit" ? "#ef4444" : m === "assign" ? "#22c55e" : "#3b82f6"
+                            : "#374151",
+                        color: mode === m ? "#fff" : "#9ca3af",
+                        textTransform: "capitalize",
+                    }}
+                >
+                    {m}
+                </button>
+            ))}
+        </div>
+
+        {mode === "edit" && (
+            <div style={{ marginTop: 4 }}>
                 <button
                     onClick={handleGenerate}
                     style={{ background: "#581c87", borderColor: "#8b5cf6" }}
                 >
                     Generate Galaxy
                 </button>
-                <button
-                    onClick={handleExport}
-                >
-                    Export JSON
-                </button>
+                <button onClick={handleExport}>Export JSON</button>
                 <p className="sub-text">
                     Click Export, then overwrite <code>builder/app/arrangement.json</code>.
                 </p>
+            </div>
+        )}
+
+        {mode === "assign" && (
+            <div style={{ marginTop: 4 }}>
+                {!assignSession?.skyField ? (
+                    <div>
+                        <p className="sub-text" style={{ marginBottom: 8 }}>
+                            Import a SkyField JSON to begin assigning chapters to stars.
+                        </p>
+                        <label style={{ display: 'block', cursor: 'pointer' }}>
+                            <input
+                                type="file"
+                                accept=".json"
+                                style={{ display: 'none' }}
+                                onChange={e => {
+                                    const f = e.target.files?.[0];
+                                    if (f) handleImportAssignSkyField(f);
+                                    e.target.value = "";
+                                }}
+                            />
+                            <span
+                                style={{
+                                    display: 'block',
+                                    textAlign: 'center',
+                                    padding: '6px 10px',
+                                    background: '#14532d',
+                                    border: '1px solid #22c55e',
+                                    borderRadius: 4,
+                                    fontSize: 12,
+                                    color: '#86efac',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Import SkyField JSON
+                            </span>
+                        </label>
+                    </div>
+                ) : (
+                    <>
+                        {/* Progress */}
+                        {(() => {
+                            const total = CANON.length;
+                            const done  = Object.keys(assignSession.assignments).length;
+                            const pct   = Math.round((done / total) * 100);
+                            return (
+                                <div style={{ marginBottom: 10 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9ca3af', marginBottom: 3 }}>
+                                        <span>Progress</span>
+                                        <span>{done} / {total} ({pct}%)</span>
+                                    </div>
+                                    <div style={{ height: 4, background: '#1f2937', borderRadius: 2, overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', width: `${pct}%`, background: '#22c55e', transition: 'width 0.3s' }} />
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Selected marker (unassigned star) */}
+                        {selectedMarkerStarId !== null && (
+                            <div style={{ marginBottom: 10, padding: 8, background: '#1c1f12', border: '1px solid #f59e0b', borderRadius: 6, fontSize: 12 }}>
+                                <div style={{ color: '#fcd34d', fontWeight: 'bold', marginBottom: 4 }}>
+                                    Unassigned Star #{selectedMarkerStarId}
+                                </div>
+                                {(() => {
+                                    const existingCh = assignStarToChapter.get(selectedMarkerStarId);
+                                    if (existingCh !== undefined) {
+                                        const ch = CANON[existingCh];
+                                        return (
+                                            <div style={{ color: '#d1d5db', marginBottom: 6 }}>
+                                                Assigned to: {ch?.bookName} {ch?.chapterNumber}
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+                                <p className="sub-text" style={{ marginBottom: 6 }}>
+                                    Select a chapter star to re-assign, or click the map to dismiss.
+                                </p>
+                                <button
+                                    onClick={handleDeassign}
+                                    style={{ fontSize: 11, padding: '3px 8px', background: '#7f1d1d', borderColor: '#ef4444' }}
+                                >
+                                    De-assign
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Selected assigned chapter */}
+                        {selectedAssignNode && (
+                            <div style={{ marginBottom: 10, padding: 8, background: '#0f1e2e', border: '1px solid #3b82f6', borderRadius: 6, fontSize: 12 }}>
+                                <div style={{ color: '#93c5fd', fontWeight: 'bold', marginBottom: 4 }}>
+                                    {selectedAssignNode.label}
+                                </div>
+                                {(() => {
+                                    const meta = selectedAssignNode.meta as any;
+                                    return (
+                                        <div style={{ color: '#9ca3af', fontSize: 11, lineHeight: 1.6 }}>
+                                            {meta.testament && <div>Testament: {meta.testament}</div>}
+                                            {meta.division  && <div>Division: {meta.division}</div>}
+                                        </div>
+                                    );
+                                })()}
+                                {selectedMarkerStarId !== null && (
+                                    <button
+                                        onClick={() => {
+                                            const chIdx = chapterNodeToGlobalIndex(selectedAssignNode.id);
+                                            if (chIdx !== undefined) handleAssign(chIdx, selectedMarkerStarId);
+                                        }}
+                                        style={{ marginTop: 6, fontSize: 11, padding: '3px 8px', background: '#14532d', borderColor: '#22c55e', color: '#86efac' }}
+                                    >
+                                        Assign to Star #{selectedMarkerStarId}
+                                    </button>
+                                )}
+                                <button
+                                    onClick={handleDeassign}
+                                    style={{ marginTop: 6, marginLeft: 4, fontSize: 11, padding: '3px 8px', background: '#7f1d1d', borderColor: '#ef4444' }}
+                                >
+                                    De-assign
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                            <label style={{ flex: 1, cursor: 'pointer' }}>
+                                <input
+                                    type="file"
+                                    accept=".json"
+                                    style={{ display: 'none' }}
+                                    onChange={e => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleImportAssignSkyField(f);
+                                        e.target.value = "";
+                                    }}
+                                />
+                                <span style={{ display: 'block', textAlign: 'center', padding: '4px 6px', background: '#1f2937', border: '1px solid #374151', borderRadius: 4, fontSize: 11, color: '#9ca3af', cursor: 'pointer' }}>
+                                    Replace SkyField
+                                </span>
+                            </label>
+                            <button
+                                onClick={handleExportAssignmentArrangement}
+                                style={{ flex: 1, fontSize: 11, padding: '4px 6px', background: '#1e3a8a', borderColor: '#3b82f6' }}
+                            >
+                                Export arrangement.json
+                            </button>
+                        </div>
+                    </>
+                )}
             </div>
         )}
 
@@ -939,12 +1341,13 @@ export default function Page() {
       <StarMap
         ref={mapRef}
         className="starmap"
-        config={config}
+        config={mode === "assign" && assignConfig ? assignConfig : config}
         onSelect={handleSelect}
         onHover={handleHover}
         onArrangementChange={handleArrangementChange}
         onFovChange={setCurrentFov}
         onLongPress={handleLongPress}
+        onMarkerSelect={handleMarkerSelect}
       />
 
       {/* Long-press info popup */}

@@ -1,1096 +1,1594 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { CANON, BOOKS, getChapter, getBook } from "./canon";
-import { buildGraph } from "./graph";
-import { getCandidates, getTransitionCandidates } from "./candidates";
-import {
-  createSession, saveSession, loadSession,
-  saveSnapshot, restoreSnapshot, deleteSnapshot,
-  exportSession, importSession, importSkyField,
-} from "./session";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { SceneNode, SceneModel, StarArrangement, StarMapHandle, HorizonThemeConfig, StarOutput } from "@project-skymap/library";
+import { StarMap } from "@project-skymap/library";
+import horizonPresetData from "../../public/horizons/biblical-presets.v1.json";
 import type { Session } from "./session";
-import type { SkyGraph } from "./graph";
-import type { CandidateMove } from "./candidates";
-import { computeMomentum, computeEnvelopeCandidates } from "./momentum";
-import type { MomentumState, EnvelopeCandidate } from "./momentum";
-import { ARCHETYPES, ARCHETYPE_ORDER, DEFAULT_ARCHETYPE } from "./archetypes";
-import type { ShapeArchetype } from "./archetypes";
+import {
+  loadSession, saveSession, createSession,
+  exportSession, exportAssignments, importSession, importSkyField, consumeGeneratedSkyField,
+} from "./session";
+import { CANON, BOOKS } from "./canon";
+import type { Chapter } from "./canon";
+import bibleRaw from "../../public/bible.json";
+import { BuilderSection, BuilderSubTabs, BuilderWorkspace } from "../components/BuilderWorkspace";
 
 // ---------------------------------------------------------------------------
-// Derived render state (pure — computed from session + graph each render)
+// Types
 // ---------------------------------------------------------------------------
 
-interface RenderState {
-  assignments:        Record<number, number>; // chapterGlobalIndex → starId
-  starToChapter:      Map<number, number>;    // starId → chapterGlobalIndex
-  assignedSet:        Set<number>;
-  anchor:             number | null;
-  currentBookStars:   Set<number>;
-  candidates:         CandidateMove[];
-  inTransition:       boolean;
-  cursor:             number;                 // 0–1188
-  // Guided-emergence additions
-  ghostPath:          number[];              // ordered star IDs for the recent trail
-  envelopeCandidates: EnvelopeCandidate[];  // soft suggestion clouds (transition only)
-  currentArchetype:   ShapeArchetype;
-  momentum:           MomentumState | null;
+type Tab = "view" | "assign" | "edit";
+
+// ---------------------------------------------------------------------------
+// Verse counts
+// ---------------------------------------------------------------------------
+
+function buildVerseCounts(): number[] {
+  const arr: number[] = [];
+  for (const testament of (bibleRaw as any).testaments) {
+    for (const division of testament.divisions) {
+      for (const book of division.books) {
+        for (let c = 0; c < book.chapters; c++) {
+          arr.push((book.verses as number[])[c] ?? 1);
+        }
+      }
+    }
+  }
+  return arr;
 }
 
-function computeRenderState(session: Session, graph: SkyGraph): RenderState {
-  const { assignments, cursor, undoStack, bookArchetypes } = session;
+const VERSE_COUNTS = buildVerseCounts();
+const MAX_VERSE_COUNT = Math.max(...VERSE_COUNTS);
+const ASSIGNED_LABEL_ZOOM_THRESHOLD = 1.65;
+const TRIANGULATION_MAX_EDGE_FACTOR = 2.35;
 
-  // Build reverse map
-  const starToChapter = new Map<number, number>();
-  for (const [chIdxStr, starId] of Object.entries(assignments)) {
-    starToChapter.set(starId, Number(chIdxStr));
-  }
-  const assignedSet = new Set(starToChapter.keys());
+function assignedStarRadius(verseCount: number): number {
+  const normalized = Math.max(0, Math.min(1, verseCount / MAX_VERSE_COUNT));
+  return 1.9 + Math.pow(normalized, 0.55) * 4.6;
+}
 
-  const cursorChapter = getChapter(cursor);
-  const cursorBook    = cursorChapter ? getBook(cursorChapter.bookIndex) : undefined;
+function assignedStarScale(verseCount: number): number {
+  const normalized = Math.max(0, Math.min(1, verseCount / MAX_VERSE_COUNT));
+  return 1 + Math.pow(normalized, 0.65) * 1.55;
+}
 
-  const inTransition =
-    cursor > 0 &&
-    cursorChapter !== undefined &&
-    cursorChapter.chapterNumber === 1;
+function drawGeneratorStyleStar(
+  ctx: CanvasRenderingContext2D,
+  sx: number,
+  sy: number,
+  magnitude: number,
+  fade: number,
+  scale = 1,
+): void {
+  if (magnitude < 2.5) {
+    const glowR = 8 * scale;
+    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
+    grad.addColorStop(0, `rgba(255,240,210,${(0.45 * fade).toFixed(3)})`);
+    grad.addColorStop(1, "rgba(255,240,210,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
 
-  let anchor: number | null = null;
-  const currentBookStars    = new Set<number>();
+    ctx.beginPath();
+    ctx.arc(sx, sy, 2.2 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,248,230,${fade.toFixed(3)})`;
+    ctx.fill();
+  } else if (magnitude < 3.5) {
+    const glowR = 5 * scale;
+    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
+    grad.addColorStop(0, `rgba(255,240,210,${(0.40 * fade).toFixed(3)})`);
+    grad.addColorStop(1, "rgba(255,240,210,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
 
-  if (inTransition) {
-    const prevBook = cursorBook ? getBook(cursorBook.index - 1) : undefined;
-    if (prevBook) {
-      for (let i = prevBook.startGlobalIndex; i <= prevBook.endGlobalIndex; i++) {
-        const sid = assignments[i];
-        if (sid !== undefined) currentBookStars.add(sid);
-      }
-    }
-    if (undoStack.length > 0) {
-      anchor = assignments[undoStack[undoStack.length - 1]!] ?? null;
-    }
-  } else if (cursorBook) {
-    for (let i = cursorBook.startGlobalIndex; i <= cursorBook.endGlobalIndex; i++) {
-      const sid = assignments[i];
-      if (sid !== undefined) currentBookStars.add(sid);
-    }
-    for (let i = undoStack.length - 1; i >= 0; i--) {
-      const chIdx = undoStack[i]!;
-      if (chIdx >= cursorBook.startGlobalIndex && chIdx <= cursorBook.endGlobalIndex) {
-        anchor = assignments[chIdx] ?? null;
-        break;
-      }
-    }
-    if (anchor === null && undoStack.length > 0) {
-      anchor = assignments[undoStack[undoStack.length - 1]!] ?? null;
-    }
-  }
-
-  // ── Archetype for the current / incoming book ──────────────────────────────
-  const activeBookIndex = inTransition
-    ? (cursorBook?.index ?? 0)                       // incoming book
-    : (cursorBook?.index ?? -1);                     // current book
-  const currentArchetype: ShapeArchetype =
-    (activeBookIndex >= 0 ? bookArchetypes[activeBookIndex] : undefined)
-    ?? DEFAULT_ARCHETYPE;
-
-  // ── Momentum (current book only, not during transition) ───────────────────
-  let momentum: MomentumState | null = null;
-  if (!inTransition && cursorBook) {
-    momentum = computeMomentum(
-      undoStack, assignments, graph,
-      cursorBook.startGlobalIndex, cursorBook.endGlobalIndex,
-    );
-  }
-
-  // ── Book star positions for shape scoring ──────────────────────────────────
-  const bookStarPositions = Array.from(currentBookStars)
-    .map(id => graph[id])
-    .filter((n): n is NonNullable<typeof n> => n !== undefined && n !== null)
-    .map(n => ({ x: n.x, y: n.y }));
-
-  // ── Candidates ─────────────────────────────────────────────────────────────
-  let candidates: CandidateMove[];
-  if (cursor >= 1189) {
-    candidates = [];
-  } else if (inTransition) {
-    candidates = getTransitionCandidates(
-      Array.from(currentBookStars),
-      assignedSet,
-      graph,
-    );
+    ctx.beginPath();
+    ctx.arc(sx, sy, 1.8 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,248,230,${fade.toFixed(3)})`;
+    ctx.fill();
+  } else if (magnitude < 4.5) {
+    ctx.beginPath();
+    ctx.arc(sx, sy, 1.4 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(220,230,255,${(0.97 * fade).toFixed(3)})`;
+    ctx.fill();
+  } else if (magnitude < 5.5) {
+    ctx.beginPath();
+    ctx.arc(sx, sy, 1.0 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(210,220,255,${(0.92 * fade).toFixed(3)})`;
+    ctx.fill();
   } else {
-    const remaining = cursorBook ? cursorBook.endGlobalIndex - cursor + 1 : 0;
-    candidates = getCandidates(anchor, assignedSet, graph, remaining, {
-      momentum,
-      archetype: currentArchetype,
-      bookStarPositions,
+    ctx.beginPath();
+    ctx.arc(sx, sy, 0.7 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,210,255,${(0.85 * fade).toFixed(3)})`;
+    ctx.fill();
+  }
+}
+
+function divisionTriangulationColor(divisionName: string): string {
+  const key = divisionName.toLowerCase();
+  if (key === "the law" || key === "paul's letters") return "rgba(110,170,255,0.58)";
+  if (key === "history" || key === "revelation") return "rgba(182,120,255,0.58)";
+  if (key === "wisdom" || key === "general letters") return "rgba(255,110,110,0.58)";
+  if (key === "major prophets" || key === "early church") return "rgba(110,214,146,0.58)";
+  if (key === "minor prophets" || key === "the gospels") return "rgba(255,214,92,0.64)";
+  return "rgba(180,190,220,0.48)";
+}
+
+type TriPoint = {
+  id: string;
+  x: number;
+  y: number;
+};
+
+type TriEdge = {
+  a: string;
+  b: string;
+};
+
+function triangulationKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+function circumcircleContains(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, px: number, py: number): boolean {
+  const apx = ax - px;
+  const apy = ay - py;
+  const bpx = bx - px;
+  const bpy = by - py;
+  const cpx = cx - px;
+  const cpy = cy - py;
+
+  const det = (apx * apx + apy * apy) * (bpx * cpy - cpx * bpy)
+    - (bpx * bpx + bpy * bpy) * (apx * cpy - cpx * apy)
+    + (cpx * cpx + cpy * cpy) * (apx * bpy - bpx * apy);
+  const orientation = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+  return orientation > 0 ? det > 1e-9 : det < -1e-9;
+}
+
+function bowyerWatson(points: TriPoint[]): TriEdge[] {
+  if (points.length < 3) return [];
+
+  const xs = points.map(point => point.x);
+  const ys = points.map(point => point.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const maxX = Math.max(...xs);
+  const maxY = Math.max(...ys);
+  const dx = maxX - minX || 1;
+  const dy = maxY - minY || 1;
+  const deltaMax = Math.max(dx, dy);
+  const midX = (minX + maxX) / 2;
+  const midY = (minY + maxY) / 2;
+
+  const superA: TriPoint = { id: "__super_a__", x: midX - 20 * deltaMax, y: midY - deltaMax };
+  const superB: TriPoint = { id: "__super_b__", x: midX, y: midY + 20 * deltaMax };
+  const superC: TriPoint = { id: "__super_c__", x: midX + 20 * deltaMax, y: midY - deltaMax };
+
+  let triangles = [{
+    a: superA,
+    b: superB,
+    c: superC,
+  }];
+
+  for (const point of points) {
+    const bad = triangles.filter(triangle =>
+      circumcircleContains(
+        triangle.a.x, triangle.a.y,
+        triangle.b.x, triangle.b.y,
+        triangle.c.x, triangle.c.y,
+        point.x, point.y,
+      ),
+    );
+
+    const polygon = new Map<string, { a: TriPoint; b: TriPoint; count: number }>();
+    for (const triangle of bad) {
+      const edges = [
+        [triangle.a, triangle.b],
+        [triangle.b, triangle.c],
+        [triangle.c, triangle.a],
+      ] as const;
+
+      for (const [ea, eb] of edges) {
+        const key = triangulationKey(ea.id, eb.id);
+        const existing = polygon.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          polygon.set(key, { a: ea, b: eb, count: 1 });
+        }
+      }
+    }
+
+    triangles = triangles.filter(triangle => !bad.includes(triangle));
+
+    for (const edge of polygon.values()) {
+      if (edge.count !== 1) continue;
+      triangles.push({ a: edge.a, b: edge.b, c: point });
+    }
+  }
+
+  const superIds = new Set([superA.id, superB.id, superC.id]);
+  const edges = new Map<string, TriEdge>();
+
+  for (const triangle of triangles) {
+    const ids = [triangle.a.id, triangle.b.id, triangle.c.id];
+    if (ids.some(id => superIds.has(id))) continue;
+    const pairs = [
+      [triangle.a.id, triangle.b.id],
+      [triangle.b.id, triangle.c.id],
+      [triangle.c.id, triangle.a.id],
+    ] as const;
+    for (const [a, b] of pairs) {
+      edges.set(triangulationKey(a, b), { a, b });
+    }
+  }
+
+  return [...edges.values()];
+}
+
+// ---------------------------------------------------------------------------
+// Scene helpers
+// ---------------------------------------------------------------------------
+
+const nid = {
+  testament: (t: string)               => `T:${t}`,
+  division:  (t: string, d: string)    => `D:${t}:${d}`,
+  book:      (key: string)             => `B:${key}`,
+  chapter:   (key: string, ch: number) => `C:${key}:${ch}`,
+};
+
+function chapterNodeToGlobalIndex(id: string): number | undefined {
+  const m = id.match(/^C:([^:]+):(\d+)$/);
+  if (!m) return undefined;
+  const book = BOOKS.find(b => b.key === m[1]);
+  if (!book) return undefined;
+  const gi = book.startGlobalIndex + Number(m[2]) - 1;
+  return gi >= book.startGlobalIndex && gi <= book.endGlobalIndex ? gi : undefined;
+}
+
+/** Reconstruct a SceneModel from an arrangement.json's node IDs (View + Edit). */
+function buildModelFromArrangement(arrangement: StarArrangement): SceneModel {
+  const nodes: SceneNode[] = [];
+  const addedT = new Set<string>();
+  const addedD = new Set<string>();
+  const addedB = new Set<string>();
+
+  const chapterKeys = Object.keys(arrangement)
+    .filter(k => /^C:/.test(k))
+    .sort((a, b) => (chapterNodeToGlobalIndex(a) ?? 9999) - (chapterNodeToGlobalIndex(b) ?? 9999));
+
+  for (const key of chapterKeys) {
+    const gi = chapterNodeToGlobalIndex(key);
+    if (gi === undefined) continue;
+    const chapter = CANON[gi];
+    if (!chapter) continue;
+
+    const tid = nid.testament(chapter.testament);
+    if (!addedT.has(tid)) {
+      addedT.add(tid);
+      nodes.push({ id: tid, label: chapter.testament, level: 0,
+        meta: { testament: chapter.testament } });
+    }
+
+    const did = nid.division(chapter.testament, chapter.divisionName);
+    if (!addedD.has(did)) {
+      addedD.add(did);
+      nodes.push({ id: did, label: chapter.divisionName, level: 1, parent: tid,
+        meta: { testament: chapter.testament, division: chapter.divisionName } });
+    }
+
+    const bid = nid.book(chapter.bookKey);
+    if (!addedB.has(bid)) {
+      addedB.add(bid);
+      nodes.push({ id: bid, label: chapter.bookName, level: 2, parent: did,
+        meta: { bookKey: chapter.bookKey, book: chapter.bookName } });
+    }
+
+    nodes.push({
+      id: key, label: `${chapter.bookName} ${chapter.chapterNumber}`,
+      level: 3, parent: bid, weight: VERSE_COUNTS[gi] ?? 1,
+      meta: { bookKey: chapter.bookKey, chapter: chapter.chapterNumber },
     });
   }
 
-  // ── Ghost path: last 8 current-book stars in assignment order ─────────────
-  const ghostPath: number[] = [];
-  if (!inTransition && cursorBook) {
-    const trail = undoStack
-      .filter(i => i >= cursorBook.startGlobalIndex && i <= cursorBook.endGlobalIndex)
-      .slice(-8);
-    for (const i of trail) {
-      const sid = assignments[i];
-      if (sid !== undefined) ghostPath.push(sid);
+  return { nodes };
+}
+
+/** Build SceneModel + StarArrangement from an assign session. */
+function buildAssignedScene(session: Session): { model: SceneModel; arrangement: StarArrangement } {
+  const nodes: SceneNode[]       = [];
+  const arrangement: StarArrangement = {};
+  const addedT = new Set<string>(), addedD = new Set<string>(), addedB = new Set<string>();
+
+  for (const [chStr, starId] of Object.entries(session.assignments)) {
+    const chIdx   = Number(chStr);
+    const chapter = CANON[chIdx];
+    if (!chapter) continue;
+    const star = session.skyField.stars[starId];
+    if (!star) continue;
+
+    const tid = nid.testament(chapter.testament);
+    if (!addedT.has(tid)) {
+      addedT.add(tid);
+      nodes.push({ id: tid, label: chapter.testament, level: 0,
+        meta: { testament: chapter.testament } });
     }
+
+    const did = nid.division(chapter.testament, chapter.divisionName);
+    if (!addedD.has(did)) {
+      addedD.add(did);
+      nodes.push({ id: did, label: chapter.divisionName, level: 1, parent: tid });
+    }
+
+    const bid = nid.book(chapter.bookKey);
+    if (!addedB.has(bid)) {
+      addedB.add(bid);
+      nodes.push({ id: bid, label: chapter.bookName, level: 2, parent: did,
+        meta: { bookKey: chapter.bookKey } });
+    }
+
+    const cid = nid.chapter(chapter.bookKey, chapter.chapterNumber);
+    nodes.push({
+      id: cid, label: `${chapter.bookName} ${chapter.chapterNumber}`,
+      level: 3, parent: bid, weight: VERSE_COUNTS[chIdx] ?? 1,
+      meta: { bookKey: chapter.bookKey, chapter: chapter.chapterNumber },
+    });
+
+    arrangement[cid] = { position: [star.x3 * 2000, star.y3 * 2000, star.z3 * 2000] };
   }
 
-  // ── Envelope candidates (only needed during transition) ───────────────────
-  let envelopeCandidates: EnvelopeCandidate[] = [];
-  if (inTransition && cursorBook) {
-    envelopeCandidates = computeEnvelopeCandidates(
-      cursorBook.chapterCount,
-      assignedSet,
-      graph,
-    );
-  }
-
-  return {
-    assignments, starToChapter, assignedSet,
-    anchor, currentBookStars, candidates,
-    inTransition, cursor,
-    ghostPath, envelopeCandidates, currentArchetype, momentum,
-  };
+  return { model: { nodes }, arrangement };
 }
 
 // ---------------------------------------------------------------------------
-// Canvas drawing
+// Chapter search
 // ---------------------------------------------------------------------------
 
-const BG = "#05060a";
+function parseChapterQuery(query: string): Chapter[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
 
-function starDotRadius(magnitude: number): number {
-  if      (magnitude < 2.5) return 2.2;
-  else if (magnitude < 3.5) return 1.8;
-  else if (magnitude < 4.5) return 1.4;
-  else if (magnitude < 5.5) return 1.0;
-  else                      return 0.7;
-}
+  // Detect trailing chapter number: "gen 1", "1 cor 13", "ps 23"
+  const m        = q.match(/^(.+?)\s+(\d+)$/);
+  const bookPart = (m ? m[1]! : q).trim();
+  const chapNum  = m ? Number(m[2]) : null;
 
-function drawSky(
-  ctx:       CanvasRenderingContext2D,
-  W:         number,
-  H:         number,
-  graph:     SkyGraph,
-  rs:        RenderState,
-  pan:       { x: number; y: number },
-  zoom:      number,
-  rotation:  number,
-  time:      number,
-  hoverStar: number | null,
-  showLines: boolean,
-): void {
-  // ── Background: outside dark, inside subtly lighter so the boundary is clear ─
-  ctx.fillStyle = BG;
-  ctx.fillRect(0, 0, W, H);
-
-  const baseR  = Math.min(W, H) / 2 - 16;
-  const radius = baseR * zoom;
-  const scx    = W / 2 + pan.x;
-  const scy    = H / 2 + pan.y;
-
-  // Star-field disc — slightly blue-tinted so inside/outside contrast is obvious
-  ctx.beginPath();
-  ctx.arc(scx, scy, radius, 0, Math.PI * 2);
-  ctx.fillStyle = "#090d1a";
-  ctx.fill();
-
-  // Subtle boundary ring
-  ctx.beginPath();
-  ctx.arc(scx, scy, radius, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(80,100,160,0.35)";
-  ctx.lineWidth   = 1.5;
-  ctx.stroke();
-
-  const cosR = Math.cos(rotation);
-  const sinR = Math.sin(rotation);
-
-  /** Rotate a unit-disk (x, y) by current rotation and project to canvas. */
-  const project = (x: number, y: number) => ({
-    sx: scx + (x * cosR - y * sinR) * radius,
-    sy: scy + (x * sinR + y * cosR) * radius,
+  const matched = BOOKS.filter(b => {
+    const key  = b.key.toLowerCase();
+    const name = b.name.toLowerCase();
+    return key.startsWith(bookPart) || name.startsWith(bookPart);
   });
 
-  const pulse = 0.5 + 0.5 * Math.sin(time / 700);
+  if (matched.length === 0) return [];
 
-  // ── Pass 0a: book envelope suggestion clouds ──────────────────────────────
-  for (const env of rs.envelopeCandidates) {
-    const { sx, sy } = project(env.x, env.y);
-    const envR  = env.radius * radius;
-    const alpha = env.quality * 0.16;
-
-    const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, envR);
-    gr.addColorStop(0,   `rgba(100,140,240,${(alpha * 0.55).toFixed(3)})`);
-    gr.addColorStop(0.5, `rgba(80,120,210,${(alpha * 0.25).toFixed(3)})`);
-    gr.addColorStop(1,   "rgba(60,100,180,0)");
-    ctx.fillStyle = gr;
-    ctx.fillRect(sx - envR, sy - envR, envR * 2, envR * 2);
-
-    // Dashed boundary ring
-    ctx.beginPath();
-    ctx.arc(sx, sy, envR, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(100,140,220,${(env.quality * 0.22).toFixed(3)})`;
-    ctx.lineWidth   = 1;
-    ctx.setLineDash([4, 7]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // ── Pass 0b: ghost path — fading trail of recent book assignments ─────────
-  if (rs.ghostPath.length >= 2) {
-    const pathNodes = rs.ghostPath
-      .map(id => graph[id])
-      .filter((n): n is NonNullable<typeof n> => n !== undefined && n !== null);
-
-    for (let i = 1; i < pathNodes.length; i++) {
-      const t     = i / (pathNodes.length - 1);       // 0 = oldest, 1 = newest
-      const alpha = 0.06 + 0.30 * t;
-      const prev  = project(pathNodes[i - 1]!.x, pathNodes[i - 1]!.y);
-      const curr  = project(pathNodes[i]!.x,     pathNodes[i]!.y);
-      ctx.beginPath();
-      ctx.moveTo(prev.sx, prev.sy);
-      ctx.lineTo(curr.sx, curr.sy);
-      ctx.strokeStyle = `rgba(255,200,100,${alpha.toFixed(3)})`;
-      ctx.lineWidth   = 1.2;
-      ctx.stroke();
-    }
-  }
-
-  // ── Pass 1: all star dots ─────────────────────────────────────────────────
-  for (const node of graph) {
-    if (!node) continue;
-    const { sx, sy } = project(node.x, node.y);
-
-    const projR = Math.sqrt(node.x * node.x + node.y * node.y);
-    if (projR >= 1.0) continue;
-    // Fade only the outermost 12 % of the disc — rest is fully lit
-    const fade = projR > 0.88 ? Math.max(0, (1 - projR) / 0.12) : 1;
-    if (fade <= 0) continue;
-
-    const starId = node.id;
-    const dotR   = starDotRadius(node.magnitude);
-
-    const isAnchor      = starId === rs.anchor;
-    const isCurrentBook = rs.currentBookStars.has(starId);
-    const isAssigned    = rs.assignedSet.has(starId);
-    const isHovered     = starId === hoverStar;
-
-    let r: number, g: number, b: number, alpha: number;
-
-    if (isAnchor) {
-      r = 255; g = 235; b = 160;
-      alpha = fade;
-      const glowR = dotR * 6;
-      const gr    = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-      gr.addColorStop(0, `rgba(255,220,100,${(0.55 * fade).toFixed(3)})`);
-      gr.addColorStop(1, "rgba(255,220,100,0)");
-      ctx.fillStyle = gr;
-      ctx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
-    } else if (isCurrentBook) {
-      r = 255; g = 215; b = 130;
-      alpha = 0.95 * fade;
-    } else if (isAssigned) {
-      r = 180; g = 188; b = 210;
-      alpha = 0.70 * fade;
+  const results: Chapter[] = [];
+  for (const book of matched.slice(0, 3)) {
+    if (chapNum !== null) {
+      if (chapNum >= 1 && chapNum <= book.chapterCount) {
+        const ch = CANON[book.startGlobalIndex + chapNum - 1];
+        if (ch) results.push(ch);
+      }
     } else {
-      r = 210; g = 222; b = 255;
-      alpha = isHovered ? 1.0 * fade : 0.88 * fade;
-    }
-
-    ctx.beginPath();
-    ctx.arc(sx, sy, isAnchor ? dotR * 1.4 : dotR, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
-    ctx.fill();
-  }
-
-  // ── Pass 2: candidate rings ───────────────────────────────────────────────
-  for (const candidate of rs.candidates) {
-    const node = graph[candidate.starId];
-    if (!node) continue;
-
-    const { sx, sy } = project(node.x, node.y);
-    const projR = Math.sqrt(node.x * node.x + node.y * node.y);
-    if (projR >= 1.0) continue;
-    const fade = projR > 0.88 ? Math.max(0, (1 - projR) / 0.12) : 1;
-    if (fade <= 0) continue;
-
-    const ringR = starDotRadius(node.magnitude) * 4.0;
-    const ringA = candidate.tier === 1
-      ? (0.18 + 0.28 * pulse) * fade
-      : 0.12 * fade;
-
-    ctx.beginPath();
-    ctx.arc(sx, sy, ringR, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255,242,190,${ringA.toFixed(3)})`;
-    ctx.lineWidth   = candidate.tier === 1 ? 1.5 : 1.0;
-    ctx.stroke();
-  }
-
-  // ── Pass 3: constellation line for current book ───────────────────────────
-  if (showLines && rs.currentBookStars.size >= 2) {
-    const refChapter = rs.inTransition
-      ? getChapter(rs.cursor - 1)
-      : getChapter(rs.cursor);
-    const activeBook = refChapter ? getBook(refChapter.bookIndex) : undefined;
-    const prevBook   = rs.inTransition && activeBook
-      ? getBook(activeBook.index - 1)
-      : activeBook;
-
-    if (prevBook) {
-      const orderedStars: { sx: number; sy: number }[] = [];
-      for (
-        let i = prevBook.startGlobalIndex;
-        i <= Math.min(rs.cursor - 1, prevBook.endGlobalIndex);
-        i++
-      ) {
-        const sid  = rs.assignments[i];
-        if (sid === undefined) continue;
-        const node = graph[sid];
-        if (!node) continue;
-        const projR = Math.sqrt(node.x * node.x + node.y * node.y);
-        if (projR >= 1.0) continue;
-        orderedStars.push(project(node.x, node.y));
-      }
-      if (orderedStars.length >= 2) {
-        ctx.beginPath();
-        ctx.moveTo(orderedStars[0]!.sx, orderedStars[0]!.sy);
-        for (let i = 1; i < orderedStars.length; i++) {
-          ctx.lineTo(orderedStars[i]!.sx, orderedStars[i]!.sy);
-        }
-        ctx.strokeStyle = "rgba(255,215,120,0.18)";
-        ctx.lineWidth   = 0.8;
-        ctx.stroke();
+      const show = matched.length === 1 ? 8 : 3;
+      for (let i = 0; i < Math.min(book.chapterCount, show); i++) {
+        const ch = CANON[book.startGlobalIndex + i];
+        if (ch) results.push(ch);
       }
     }
+    if (results.length >= 8) break;
   }
 
-  // ── Pass 4: chapter labels (visible when zoomed in) ───────────────────────
-  if (zoom >= 2.2) {
-    const labelAlpha = Math.min(0.75, (zoom - 2.2) / 1.5);
-    ctx.save();
-    ctx.font         = "9px 'SF Mono', ui-monospace, monospace";
-    ctx.textAlign    = "center";
-    ctx.textBaseline = "bottom";
+  return results.slice(0, 8);
+}
 
-    for (const [chIdxStr, starId] of Object.entries(rs.assignments)) {
-      const node = graph[starId];
-      if (!node) continue;
+// ---------------------------------------------------------------------------
+// File export helpers
+// ---------------------------------------------------------------------------
 
-      const projR = Math.sqrt(node.x * node.x + node.y * node.y);
-      if (projR >= 1.0) continue;
-      const fade = projR > 0.88 ? Math.max(0, (1 - projR) / 0.12) : 1;
-      if (fade <= 0) continue;
-
-      const { sx, sy } = project(node.x, node.y);
-
-      const chapter = getChapter(Number(chIdxStr));
-      if (!chapter) continue;
-
-      const label     = `${chapter.bookKey} ${chapter.chapterNumber}`;
-      const dotOffset = starDotRadius(node.magnitude) + 4;
-
-      ctx.fillStyle = `rgba(190,205,240,${(labelAlpha * fade).toFixed(3)})`;
-      ctx.fillText(label, sx, sy - dotOffset);
-    }
-
-    ctx.restore();
-  }
+function downloadJson(data: unknown, filename: string): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
-export default function AssignPage() {
-  // ── Core state ────────────────────────────────────────────────────────────
+export default function BuilderPage() {
+  const mapRef = useRef<StarMapHandle>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animRef = useRef<number>(0);
+  const spinRef = useRef(0);
+  const zoomRef = useRef(1.0);
+  const panRef = useRef({ x: 0, y: 0 });
+  const isDraggingRef = useRef(false);
+  const dragMovedRef = useRef(false);
+  const dragModeRef = useRef<"pan" | "spin">("pan");
+  const lastMouseRef = useRef({ x: 0, y: 0 });
+  const assignedHitRef = useRef<Array<{ chapterGlobalIndex: number; starId: number; x: number; y: number; r: number }>>([]);
+  const unassignedHitRef = useRef<Array<{ starId: number; x: number; y: number; r: number }>>([]);
+
+  const [activeTab, setActiveTab] = useState<Tab>("assign");
+
+  // View + Edit share this arrangement state (both load arrangement.json)
+  const [arrangement, setArrangement] = useState<StarArrangement | null>(null);
+
+  // Assign: full session (skyfield + assignments)
   const [session, setSession] = useState<Session | null>(null);
-  const [graph, setGraph]     = useState<SkyGraph | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<string>("No session loaded yet.");
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [showBookTriangulation, setShowBookTriangulation] = useState(true);
 
-  // ── Derived render state ──────────────────────────────────────────────────
-  const renderStateRef = useRef<RenderState | null>(null);
+  // 3D selection (Assign mode only)
+  const [selectedNode,          setSelectedNode]          = useState<SceneNode | null>(null);
+  const [selectedMarkerStarId,  setSelectedMarkerStarId]  = useState<number | null>(null);
+  const [popupAnchor,           setPopupAnchor]           = useState<{ x: number; y: number } | null>(null);
+  const [armedChapterIndex,     setArmedChapterIndex]     = useState<number | null>(null);
 
-  // ── Canvas refs ───────────────────────────────────────────────────────────
-  const canvasRef              = useRef<HTMLCanvasElement>(null);
-  const animRef                = useRef(0);
-  const graphRef               = useRef<SkyGraph | null>(null);
-  const renderStateRefForDraw  = useRef<RenderState | null>(null);
-  const panRef                 = useRef({ x: 0, y: 0 });
-  const zoomRef                = useRef(1.0);
-  const rotationRef            = useRef(0);
-  const hoverStarRef           = useRef<number | null>(null);
-  const showLinesRef           = useRef(true);
+  const lastPointerRef   = useRef({ x: 0, y: 0 });
+  const containerRef     = useRef<HTMLDivElement>(null);
 
-  // ── Pointer interaction ───────────────────────────────────────────────────
-  const isDragging     = useRef(false);
-  const dragModeRef    = useRef<"pan" | "rotate">("pan");
-  const dragStartRef   = useRef({ x: 0, y: 0 });
-  const hasDraggedRef  = useRef(false);
-  const lastPointerRef = useRef({ x: 0, y: 0 });
+  // ── Session bootstrap ──────────────────────────────────────────────────────
 
-  // ── UI state ──────────────────────────────────────────────────────────────
-  const [snapshotName, setSnapshotName]   = useState("");
-  const [showSnapPanel, setShowSnapPanel] = useState(false);
-  const [showLines, setShowLines]         = useState(true);
-  const [hoverHint, setHoverHint]         = useState<string | null>(null);
-  const [loadError, setLoadError]         = useState<string | null>(null);
-  const [jumpBook, setJumpBook]           = useState(0);
-  const [jumpChapter, setJumpChapter]     = useState(1);
-
-  // ── Load saved session on mount ───────────────────────────────────────────
   useEffect(() => {
+    const handedOffSkyField = consumeGeneratedSkyField();
+    if (handedOffSkyField) {
+      setSession(createSession(handedOffSkyField));
+      setActiveTab("assign");
+      setSessionStatus("Loaded generated sky field from Generate.");
+      return;
+    }
     const saved = loadSession();
-    if (saved) {
-      const g = buildGraph(saved.skyField.stars);
-      setGraph(g);
-      setSession(saved);
+    setSession(saved);
+    setSessionStatus(saved ? "Restored autosaved session from this browser." : "No saved browser session found.");
+  }, []);
+  useEffect(() => {
+    if (!session) return;
+    saveSession(session);
+    setLastSavedAt(Date.now());
+    setSessionStatus(prev =>
+      prev.startsWith("Loaded ") || prev.startsWith("Restored ") || prev.startsWith("Imported ")
+        ? prev
+        : "Autosaved in this browser.",
+    );
+  }, [session]);
+
+  // ── Derived data ───────────────────────────────────────────────────────────
+
+  const viewModel = useMemo(() => {
+    if (!arrangement) return null;
+    return buildModelFromArrangement(arrangement);
+  }, [arrangement]);
+
+  const starToChapter = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const [chStr, starId] of Object.entries(session?.assignments ?? {})) {
+      m.set(starId, Number(chStr));
+    }
+    return m;
+  }, [session]);
+
+  const assignedChapters = useMemo(
+    () => new Set<number>(Object.keys(session?.assignments ?? {}).map(Number)),
+    [session],
+  );
+
+  // ── 3D config ──────────────────────────────────────────────────────────────
+
+  const [constellationConfig, setConstellationConfig] = useState<any>(null);
+
+  const horizonTheme = useMemo<HorizonThemeConfig | undefined>(() => {
+    const themes    = (horizonPresetData as any).themes as HorizonThemeConfig[];
+    const defaultId = (horizonPresetData as any).defaultThemeId as string;
+    return themes?.find(t => t.id === defaultId) ?? themes?.[0];
+  }, []);
+
+  useEffect(() => {
+    fetch("/constellations.json")
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(data => {
+        if (data.atlasBasePath) data.atlasBasePath = data.atlasBasePath;
+        setConstellationConfig(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const config = useMemo(() => {
+    const base = {
+      layout:            { algorithm: "phyllotaxis" as const, radius: 2000 },
+      starSizeExponent:         4.0,
+      starSizeScale:            6.0,
+      starSizeWeightPercentile: 1.0,
+      starZoomReveal:           false,
+      showAtmosphere:       false,
+      showMoon:             false,
+      showSunrise:          false,
+      showMilkyWay:         false,
+      showBackdropStars:    false,
+      showConstellationArt: true,
+      constellations:       constellationConfig,
+      horizonTheme,
+      projection:           "blended" as const,
+      fitProjection:        true,
+      labelBehavior: {
+        overlapPaddingPx:  2,
+        reappearDelayMs:   60,
+        classes: {
+          chapter: { maxFov: 22, maxOverlapPx: 12 },
+        },
+      },
+    };
+
+    if (activeTab === "view" || activeTab === "edit") {
+      if (!viewModel || !arrangement) return null;
+      return {
+        ...base,
+        model:              viewModel,
+        arrangement,
+        editable:           activeTab === "edit",
+        showBookLabels:     true,
+        showChapterLabels:  true,
+        showDivisionLabels: false,
+        showGroupLabels:    false,
+      };
+    }
+
+    return null;
+  }, [activeTab, viewModel, arrangement, constellationConfig, horizonTheme]);
+
+  // ── Tab switch ─────────────────────────────────────────────────────────────
+
+  const handleTabChange = useCallback((tab: Tab) => {
+    setSelectedNode(null);
+    setSelectedMarkerStarId(null);
+    setPopupAnchor(null);
+    setArmedChapterIndex(null);
+    setActiveTab(tab);
+  }, []);
+
+  // ── Assign handlers ────────────────────────────────────────────────────────
+
+  const assignChapterToStar = useCallback((chapterGlobalIndex: number, starId: number) => {
+    setSession(prev => {
+      if (!prev) return prev;
+      const next: Record<number, number> = {};
+      for (const [ch, st] of Object.entries(prev.assignments)) {
+        if (Number(ch) !== chapterGlobalIndex) next[Number(ch)] = st;
+      }
+      next[chapterGlobalIndex] = starId;
+      return { ...prev, assignments: next };
+    });
+  }, []);
+
+  const handleAssign = useCallback((chapterGlobalIndex: number) => {
+    if (selectedMarkerStarId === null) return;
+    assignChapterToStar(chapterGlobalIndex, selectedMarkerStarId);
+    setArmedChapterIndex(null);
+    setSelectedMarkerStarId(null);
+    setPopupAnchor(null);
+  }, [assignChapterToStar, selectedMarkerStarId]);
+
+  const handleDeassign = useCallback(() => {
+    const chIdx =
+      selectedNode             ? chapterNodeToGlobalIndex(selectedNode.id) :
+      selectedMarkerStarId !== null ? starToChapter.get(selectedMarkerStarId) :
+      undefined;
+    if (chIdx === undefined) return;
+    setSession(prev => {
+      if (!prev) return prev;
+      const next = { ...prev.assignments };
+      delete next[chIdx];
+      return { ...prev, assignments: next };
+    });
+    if (armedChapterIndex === chIdx) setArmedChapterIndex(null);
+    setSelectedNode(null);
+    setSelectedMarkerStarId(null);
+  }, [armedChapterIndex, selectedNode, selectedMarkerStarId, starToChapter]);
+
+  const handleClose = useCallback(() => {
+    setSelectedNode(null);
+    setSelectedMarkerStarId(null);
+    setPopupAnchor(null);
+    setArmedChapterIndex(null);
+  }, []);
+
+  // ── Edit handler ───────────────────────────────────────────────────────────
+
+  const handleArrangementChange = useCallback((updated: StarArrangement) => {
+    setArrangement(updated);
+  }, []);
+
+  const handleDeassignByIndex = useCallback((chapterGlobalIndex: number) => {
+    setSession(prev => {
+      if (!prev) return prev;
+      const next = { ...prev.assignments };
+      delete next[chapterGlobalIndex];
+      return { ...prev, assignments: next };
+    });
+    if (armedChapterIndex === chapterGlobalIndex) setArmedChapterIndex(null);
+  }, [armedChapterIndex]);
+
+  // ── File import ────────────────────────────────────────────────────────────
+
+  const handleImportArrangement = useCallback(async (file: File) => {
+    try {
+      setArrangement(JSON.parse(await file.text()) as StarArrangement);
+    } catch { /* invalid */ }
+  }, []);
+
+  const handleImportSkyField = useCallback(async (file: File) => {
+    try {
+      setSession(createSession(await importSkyField(file)));
+      setSessionStatus(`Loaded sky field from ${file.name}.`);
+    } catch { /* invalid */ }
+  }, []);
+
+  const handleImportSession = useCallback(async (file: File) => {
+    try {
+      setSession(await importSession(file));
+      setSessionStatus(`Imported session from ${file.name}.`);
+    } catch { /* invalid */ }
+  }, []);
+
+  // ── Derived display values ─────────────────────────────────────────────────
+
+  const totalAssigned      = Object.keys(session?.assignments ?? {}).length;
+  const hasSkyField        = (session?.skyField.stars.length ?? 0) > 0;
+  const unassignedCount    = hasSkyField ? Math.max(0, (session?.skyField.stars.length ?? 0) - totalAssigned) : 0;
+  const arrangementCount   = arrangement
+    ? Object.keys(arrangement).filter(k => /^C:/.test(k)).length
+    : 0;
+
+  const selectedChapterIndex = selectedNode ? chapterNodeToGlobalIndex(selectedNode.id) : undefined;
+  const selectedChapter      = selectedChapterIndex !== undefined ? CANON[selectedChapterIndex] : undefined;
+  const selectedVerses       = selectedChapterIndex !== undefined ? VERSE_COUNTS[selectedChapterIndex] : undefined;
+  const selectedMarkerStar   = selectedMarkerStarId !== null
+    ? session?.skyField.stars.find(star => star.id === selectedMarkerStarId) ?? null
+    : null;
+  const armedChapter         = armedChapterIndex !== null ? CANON[armedChapterIndex] : undefined;
+  const armedVerses          = armedChapterIndex !== null ? VERSE_COUNTS[armedChapterIndex] : undefined;
+  const lastSavedLabel       = lastSavedAt !== null
+    ? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(lastSavedAt)
+    : null;
+  const triangulationBooks = useMemo(() => {
+    if (!session?.skyField) return [];
+
+    const books = new Map<string, {
+      divisionName: string;
+      points: Array<{ chapterGlobalIndex: number; starId: number; x: number; y: number }>;
+    }>();
+
+    for (const [chapterKey, starId] of Object.entries(session.assignments)) {
+      const chapterGlobalIndex = Number(chapterKey);
+      const chapter = CANON[chapterGlobalIndex];
+      const star = session.skyField.stars.find(item => item.id === starId);
+      if (!chapter || !star) continue;
+
+      let book = books.get(chapter.bookKey);
+      if (!book) {
+        book = { divisionName: chapter.divisionName, points: [] };
+        books.set(chapter.bookKey, book);
+      }
+      book.points.push({
+        chapterGlobalIndex,
+        starId,
+        x: star.x,
+        y: star.y,
+      });
+    }
+
+    return [...books.entries()].map(([bookKey, book]) => {
+      const points = book.points;
+      const pointMap = new Map<string, (typeof points)[number]>(
+        points.map(point => [`${point.chapterGlobalIndex}`, point] as const),
+      );
+      const edges = points.length === 2
+        ? [{ a: `${points[0]!.chapterGlobalIndex}`, b: `${points[1]!.chapterGlobalIndex}` }]
+        : bowyerWatson(points.map(point => ({
+            id: `${point.chapterGlobalIndex}`,
+            x: point.x,
+            y: point.y,
+          })));
+
+      const lengths = edges.map(edge => {
+        const a = pointMap.get(edge.a);
+        const b = pointMap.get(edge.b);
+        if (!a || !b) return Infinity;
+        return Math.hypot(a.x - b.x, a.y - b.y);
+      }).filter(Number.isFinite);
+
+      const averageLength = lengths.length > 0
+        ? lengths.reduce((sum, value) => sum + value, 0) / lengths.length
+        : 0;
+      const maxLength = averageLength > 0 ? averageLength * TRIANGULATION_MAX_EDGE_FACTOR : Infinity;
+      type BookEdge = { a: (typeof points)[number]; b: (typeof points)[number] };
+
+      return {
+        bookKey,
+        divisionName: book.divisionName,
+        color: divisionTriangulationColor(book.divisionName),
+        edges: edges
+          .map(edge => {
+            const a = pointMap.get(edge.a);
+            const b = pointMap.get(edge.b);
+            if (!a || !b) return null;
+            const length = Math.hypot(a.x - b.x, a.y - b.y);
+            if (length > maxLength) return null;
+            return { a, b };
+          })
+          .filter((edge): edge is BookEdge => edge !== null),
+      };
+    });
+  }, [session]);
+
+  const focusSkyStar = useCallback((star: StarOutput) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const baseRadius = Math.min(width, height) / 2 - 12;
+    zoomRef.current = 1.45;
+    const radius = baseRadius * zoomRef.current;
+    const cos = Math.cos(spinRef.current);
+    const sin = Math.sin(spinRef.current);
+    const rx = star.x * cos + star.y * sin;
+    const rz = -star.x * sin + star.y * cos;
+    panRef.current = { x: -rx * radius, y: -rz * radius };
+  }, []);
+
+  const handleArmReassign = useCallback((chapterGlobalIndex: number) => {
+    const chapter = CANON[chapterGlobalIndex];
+    const starId = session?.assignments[chapterGlobalIndex];
+    const star = starId !== undefined ? session?.skyField.stars.find(item => item.id === starId) : undefined;
+    if (!chapter) return;
+    setArmedChapterIndex(chapterGlobalIndex);
+    setSelectedNode(null);
+    setSelectedMarkerStarId(null);
+    setPopupAnchor(null);
+    if (activeTab === "assign" && star) {
+      focusSkyStar(star);
+      return;
+    }
+    mapRef.current?.flyTo(nid.chapter(chapter.bookKey, chapter.chapterNumber), 10);
+  }, [activeTab, focusSkyStar, session]);
+
+  const handleFlyToChapter = useCallback((chapterGlobalIndex: number) => {
+    if (activeTab !== "assign") {
+      const chapter = CANON[chapterGlobalIndex];
+      if (!chapter) return;
+      mapRef.current?.flyTo(nid.chapter(chapter.bookKey, chapter.chapterNumber), 10);
+      return;
+    }
+
+    const chapter = CANON[chapterGlobalIndex];
+    const starId = session?.assignments[chapterGlobalIndex];
+    const star = starId !== undefined ? session?.skyField.stars.find(item => item.id === starId) : undefined;
+    if (!chapter || !star) return;
+
+    setSelectedNode({
+      id: nid.chapter(chapter.bookKey, chapter.chapterNumber),
+      label: `${chapter.bookName} ${chapter.chapterNumber}`,
+      level: 3,
+      parent: nid.book(chapter.bookKey),
+    });
+    setSelectedMarkerStarId(null);
+    setPopupAnchor(null);
+    setArmedChapterIndex(null);
+    focusSkyStar(star);
+  }, [activeTab, focusSkyStar, session]);
+
+  const handleCanvasPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    isDraggingRef.current = true;
+    dragMovedRef.current = false;
+    dragModeRef.current = e.shiftKey ? "spin" : "pan";
+    lastMouseRef.current = { x: e.clientX, y: e.clientY };
+    lastPointerRef.current = { x: e.clientX, y: e.clientY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+
+  const handleCanvasPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDraggingRef.current) return;
+    const dx = e.clientX - lastMouseRef.current.x;
+    const dy = e.clientY - lastMouseRef.current.y;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) dragMovedRef.current = true;
+    lastMouseRef.current = { x: e.clientX, y: e.clientY };
+    lastPointerRef.current = { x: e.clientX, y: e.clientY };
+
+    if (dragModeRef.current === "spin") {
+      spinRef.current += dx * 0.005;
+    } else {
+      panRef.current = { x: panRef.current.x + dx, y: panRef.current.y + dy };
     }
   }, []);
 
-  // ── Sync showLines → ref ──────────────────────────────────────────────────
-  useEffect(() => {
-    showLinesRef.current = showLines;
-  }, [showLines]);
+  const handleCanvasPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
 
-  // ── Sync session/graph → refs and auto-save ───────────────────────────────
-  useEffect(() => {
-    graphRef.current = graph;
-    if (!session || !graph) {
-      renderStateRef.current        = null;
-      renderStateRefForDraw.current = null;
+    if (dragMovedRef.current) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    let bestUnassigned: { starId: number; x: number; y: number; r: number } | null = null;
+    for (const hit of unassignedHitRef.current) {
+      const dx = hit.x - x;
+      const dy = hit.y - y;
+      if (dx * dx + dy * dy <= hit.r * hit.r) {
+        if (!bestUnassigned || hit.r < bestUnassigned.r) bestUnassigned = hit;
+      }
+    }
+
+    if (bestUnassigned) {
+      if (armedChapterIndex !== null) {
+        assignChapterToStar(armedChapterIndex, bestUnassigned.starId);
+        setArmedChapterIndex(null);
+        setSelectedNode(null);
+        setSelectedMarkerStarId(null);
+        setPopupAnchor(null);
+        return;
+      }
+
+      setSelectedMarkerStarId(bestUnassigned.starId);
+      setSelectedNode(null);
+      setPopupAnchor({ x: bestUnassigned.x, y: bestUnassigned.y });
       return;
     }
-    const rs = computeRenderState(session, graph);
-    renderStateRef.current        = rs;
-    renderStateRefForDraw.current = rs;
-    saveSession(session);
-  }, [session, graph]);
 
-  // ── Canvas draw loop ──────────────────────────────────────────────────────
+    let bestAssigned: { chapterGlobalIndex: number; starId: number; x: number; y: number; r: number } | null = null;
+    for (const hit of assignedHitRef.current) {
+      const dx = hit.x - x;
+      const dy = hit.y - y;
+      if (dx * dx + dy * dy <= hit.r * hit.r) {
+        if (!bestAssigned || hit.r < bestAssigned.r) bestAssigned = hit;
+      }
+    }
+
+    if (bestAssigned) {
+      const chapter = CANON[bestAssigned.chapterGlobalIndex];
+      if (!chapter) return;
+      setSelectedNode({
+        id: nid.chapter(chapter.bookKey, chapter.chapterNumber),
+        label: `${chapter.bookName} ${chapter.chapterNumber}`,
+        level: 3,
+        parent: nid.book(chapter.bookKey),
+      });
+      setSelectedMarkerStarId(null);
+      setPopupAnchor(null);
+      setArmedChapterIndex(null);
+      return;
+    }
+
+    handleClose();
+  }, [armedChapterIndex, assignChapterToStar, handleClose]);
+
+  const handleCanvasWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const factor = e.deltaY > 0 ? 0.93 : 1.07;
+    zoomRef.current = Math.max(0.3, Math.min(6, zoomRef.current * factor));
+  }, []);
+
+  const handleCanvasDoubleClick = useCallback(() => {
+    panRef.current = { x: 0, y: 0 };
+    zoomRef.current = 1;
+    spinRef.current = 0;
+  }, []);
+
   useEffect(() => {
+    if (activeTab !== "assign") return;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !session?.skyField) return;
 
     const draw = () => {
       animRef.current = requestAnimationFrame(draw);
 
-      const W = canvas.clientWidth;
-      const H = canvas.clientHeight;
-      if (canvas.width !== W || canvas.height !== H) {
-        canvas.width  = W;
-        canvas.height = H;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
       }
 
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      const g  = graphRef.current;
-      const rs = renderStateRefForDraw.current;
-      if (!g || !rs) {
-        ctx.fillStyle = BG;
-        ctx.fillRect(0, 0, W, H);
-        return;
+      const cx = width / 2;
+      const cy = height / 2;
+      const baseRadius = Math.min(width, height) / 2 - 12;
+      const radius = baseRadius * zoomRef.current;
+      const showAssignedLabels = zoomRef.current >= ASSIGNED_LABEL_ZOOM_THRESHOLD;
+      const spin = spinRef.current;
+      const pan = panRef.current;
+      const scx = cx + pan.x;
+      const scy = cy + pan.y;
+      const cos = Math.cos(spin);
+      const sin = Math.sin(spin);
+
+      assignedHitRef.current = [];
+      unassignedHitRef.current = [];
+
+      ctx.fillStyle = "#05060a";
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.beginPath();
+      ctx.arc(scx, scy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = "#090d1a";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(scx, scy, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(80,100,160,0.35)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      if (showBookTriangulation) {
+        for (const book of triangulationBooks) {
+          if (book.edges.length === 0) continue;
+          ctx.save();
+          ctx.beginPath();
+          for (const edge of book.edges) {
+            const ax = scx + (edge.a.x * cos + edge.a.y * sin) * radius;
+            const ay = scy + (-edge.a.x * sin + edge.a.y * cos) * radius;
+            const bx = scx + (edge.b.x * cos + edge.b.y * sin) * radius;
+            const by = scy + (-edge.b.x * sin + edge.b.y * cos) * radius;
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(bx, by);
+          }
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = book.color;
+          ctx.strokeStyle = book.color;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.restore();
+        }
       }
 
-      drawSky(
-        ctx, W, H, g, rs,
-        panRef.current, zoomRef.current,
-        rotationRef.current,
-        performance.now(),
-        hoverStarRef.current,
-        showLinesRef.current,
-      );
+      for (const star of session.skyField.stars) {
+        const projR = Math.sqrt(star.x * star.x + star.y * star.y);
+        const fade = projR >= 1 ? 0 : projR > 0.88 ? Math.max(0, (1 - projR) / 0.12) : 1;
+        if (fade <= 0) continue;
+
+        const rx = star.x * cos + star.y * sin;
+        const rz = -star.x * sin + star.y * cos;
+        const sx = scx + rx * radius;
+        const sy = scy + rz * radius;
+        const mag = star.magnitude;
+
+        const chapterGlobalIndex = starToChapter.get(star.id);
+        if (chapterGlobalIndex !== undefined) {
+          const isSelected = selectedChapterIndex === chapterGlobalIndex;
+          const isArmed = armedChapterIndex === chapterGlobalIndex;
+          const chapter = CANON[chapterGlobalIndex];
+          const verseCount = VERSE_COUNTS[chapterGlobalIndex] ?? 1;
+          const scale = assignedStarScale(verseCount);
+          const chapterRadius = assignedStarRadius(verseCount);
+
+          drawGeneratorStyleStar(ctx, sx, sy, mag, fade, scale);
+
+          if (isSelected || isArmed) {
+            ctx.beginPath();
+            ctx.arc(sx, sy, chapterRadius + (isSelected ? 6 : 5), 0, Math.PI * 2);
+            ctx.strokeStyle = isSelected ? "rgba(255,255,255,0.65)" : "rgba(251,191,36,0.65)";
+            ctx.lineWidth = isSelected ? 1.5 : 1.2;
+            ctx.stroke();
+          }
+
+          if (chapter && (showAssignedLabels || isSelected || isArmed)) {
+            const label = `${chapter.bookName} ${chapter.chapterNumber}`;
+            ctx.font = isSelected || isArmed ? "12px Arial, Helvetica, sans-serif" : "11px Arial, Helvetica, sans-serif";
+            const textWidth = ctx.measureText(label).width;
+            const labelX = sx + chapterRadius + 7;
+            const labelY = sy - chapterRadius - 4;
+            ctx.fillStyle = isSelected
+              ? "rgba(12,15,26,0.94)"
+              : isArmed
+                ? "rgba(16,13,8,0.94)"
+                : "rgba(10,13,22,0.86)";
+            ctx.fillRect(labelX - 6, labelY - 11, textWidth + 12, 16);
+            ctx.fillStyle = isSelected
+              ? "rgba(255,255,255,0.95)"
+              : isArmed
+                ? "rgba(255,243,200,0.95)"
+                : "rgba(228,235,255,0.82)";
+            ctx.fillText(label, labelX, labelY);
+          }
+
+          assignedHitRef.current.push({
+            chapterGlobalIndex,
+            starId: star.id,
+            x: sx,
+            y: sy,
+            r: chapterRadius + (isSelected ? 8 : 6),
+          });
+        } else {
+          drawGeneratorStyleStar(ctx, sx, sy, mag, fade);
+
+          ctx.beginPath();
+          ctx.arc(sx, sy, 3.1, 0, Math.PI * 2);
+          ctx.strokeStyle = selectedMarkerStarId === star.id
+            ? "rgba(253,224,71,0.95)"
+            : "rgba(251,191,36,0.78)";
+          ctx.lineWidth = selectedMarkerStarId === star.id ? 2 : 1.15;
+          ctx.stroke();
+
+          unassignedHitRef.current.push({
+            starId: star.id,
+            x: sx,
+            y: sy,
+            r: selectedMarkerStarId === star.id ? 12 : 10,
+          });
+        }
+      }
     };
 
     draw();
     return () => cancelAnimationFrame(animRef.current);
-  }, []); // runs once; reads from refs
+  }, [activeTab, armedChapterIndex, selectedChapterIndex, selectedMarkerStarId, session, showBookTriangulation, starToChapter, triangulationBooks]);
 
-  // ── Keyboard shortcuts ────────────────────────────────────────────────────
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        handleUndo();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }); // no deps — handleUndo reads session from closure
+  // ── Render ─────────────────────────────────────────────────────────────────
 
-  // ── Helpers: star under pointer ───────────────────────────────────────────
-  const starAtPoint = useCallback(
-    (canvasX: number, canvasY: number): number | null => {
-      const g = graphRef.current;
-      if (!g) return null;
-
-      const canvas = canvasRef.current;
-      if (!canvas) return null;
-      const W       = canvas.width;
-      const H       = canvas.height;
-      const baseR   = Math.min(W, H) / 2 - 16;
-      const radius  = baseR * zoomRef.current;
-      const scx     = W / 2 + panRef.current.x;
-      const scy     = H / 2 + panRef.current.y;
-      const threshold = 18 / radius;
-
-      let bestId   = -1;
-      let bestDist = Infinity;
-
-      // Convert canvas coords to unrotated unit-disk space
-      const unitX  = (canvasX - scx) / radius;
-      const unitY  = (canvasY - scy) / radius;
-      const invCos = Math.cos(-rotationRef.current);
-      const invSin = Math.sin(-rotationRef.current);
-      const hitX   = unitX * invCos - unitY * invSin;
-      const hitY   = unitX * invSin + unitY * invCos;
-
-      for (const node of g) {
-        if (!node) continue;
-        const projR = Math.sqrt(node.x * node.x + node.y * node.y);
-        if (projR >= 1.0) continue;
-
-        const dx = node.x - hitX;
-        const dy = node.y - hitY;
-        const dist  = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist < threshold && dist < bestDist) {
-          bestDist = dist;
-          bestId   = node.id;
-        }
-      }
-
-      return bestId >= 0 ? bestId : null;
-    },
-    [],
-  );
-
-  // ── Assignment ────────────────────────────────────────────────────────────
-  const handleAssign = useCallback((starId: number) => {
-    setSession(prev => {
-      if (!prev || prev.cursor >= 1189) return prev;
-      const rs = renderStateRef.current;
-      if (!rs) return prev;
-
-      // Don't steal a star already assigned to a different chapter
-      const existingChapter = rs.starToChapter.get(starId);
-      if (existingChapter !== undefined && existingChapter !== prev.cursor) return prev;
-
-      const chIdx = prev.cursor;
-
-      // Advance cursor to next unassigned chapter
-      let nextCursor = chIdx + 1;
-      while (nextCursor < 1189 && prev.assignments[nextCursor] !== undefined) {
-        nextCursor++;
-      }
-
-      // Update undoStack (remove if re-assigning same slot, append at end)
-      const newUndoStack = [...prev.undoStack.filter(i => i !== chIdx), chIdx];
-
-      return {
-        ...prev,
-        assignments: { ...prev.assignments, [chIdx]: starId },
-        cursor:      nextCursor,
-        undoStack:   newUndoStack,
-      };
-    });
-  }, []);
-
-  const handleDeassign = useCallback((starId: number) => {
-    setSession(prev => {
-      if (!prev) return prev;
-      const rs = renderStateRef.current;
-      if (!rs) return prev;
-      const chIdx = rs.starToChapter.get(starId);
-      if (chIdx === undefined) return prev;
-      const newAssignments = { ...prev.assignments };
-      delete newAssignments[chIdx];
-      return {
-        ...prev,
-        assignments: newAssignments,
-        cursor:      chIdx,
-        undoStack:   prev.undoStack.filter(i => i !== chIdx),
-      };
-    });
-  }, []);
-
-  const handleUndo = useCallback(() => {
-    setSession(prev => {
-      if (!prev || prev.undoStack.length === 0) return prev;
-      const lastChIdx      = prev.undoStack[prev.undoStack.length - 1]!;
-      const newAssignments = { ...prev.assignments };
-      delete newAssignments[lastChIdx];
-      return {
-        ...prev,
-        assignments: newAssignments,
-        cursor:      lastChIdx,
-        undoStack:   prev.undoStack.slice(0, -1),
-      };
-    });
-  }, []);
-
-  const handleJump = useCallback((globalIndex: number) => {
-    if (globalIndex < 0 || globalIndex >= 1189) return;
-    setSession(prev => prev ? { ...prev, cursor: globalIndex } : prev);
-  }, []);
-
-  const handleSetArchetype = useCallback((archetype: ShapeArchetype) => {
-    setSession(prev => {
-      if (!prev) return prev;
-      const rs = renderStateRef.current;
-      if (!rs) return prev;
-      // Apply to the incoming book (transition) or current book (assigning)
-      const bookIdx = rs.inTransition
-        ? (getChapter(rs.cursor)?.bookIndex ?? 0)
-        : (getChapter(rs.cursor)?.bookIndex ?? -1);
-      if (bookIdx < 0) return prev;
-      return {
-        ...prev,
-        bookArchetypes: { ...prev.bookArchetypes, [bookIdx]: archetype },
-      };
-    });
-  }, []);
-
-  // ── Snapshots ─────────────────────────────────────────────────────────────
-  const handleSaveSnapshot = useCallback(() => {
-    setSession(prev => prev ? saveSnapshot(prev, snapshotName) : prev);
-    setSnapshotName("");
-  }, [snapshotName]);
-
-  const handleRestoreSnapshot = useCallback((index: number) => {
-    setSession(prev => prev ? restoreSnapshot(prev, index) : prev);
-  }, []);
-
-  const handleDeleteSnapshot = useCallback((index: number) => {
-    setSession(prev => prev ? deleteSnapshot(prev, index) : prev);
-  }, []);
-
-  // ── File loading ──────────────────────────────────────────────────────────
-  const handleLoadSkyField = useCallback(async (file: File) => {
-    setLoadError(null);
-    try {
-      const sf = await importSkyField(file);
-      const g  = buildGraph(sf.stars);
-      const s  = createSession(sf);
-      setGraph(g);
-      setSession(s);
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Failed to load file.");
-    }
-  }, []);
-
-  const handleLoadSession = useCallback(async (file: File) => {
-    setLoadError(null);
-    try {
-      const s = await importSession(file);
-      const g = buildGraph(s.skyField.stars);
-      setGraph(g);
-      setSession(s);
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Failed to load file.");
-    }
-  }, []);
-
-  const handleExport = useCallback(() => {
-    if (session) exportSession(session);
-  }, [session]);
-
-  const handleFileInput = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>, mode: "skyfield" | "session") => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      if (mode === "skyfield") await handleLoadSkyField(file);
-      else await handleLoadSession(file);
-      e.target.value = "";
-    },
-    [handleLoadSkyField, handleLoadSession],
-  );
-
-  // ── Canvas pointer events ─────────────────────────────────────────────────
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    isDragging.current     = true;
-    hasDraggedRef.current  = false;
-    dragModeRef.current    = e.button === 2 ? "rotate" : "pan";
-    dragStartRef.current   = { x: e.clientX, y: e.clientY };
-    lastPointerRef.current = { x: e.clientX, y: e.clientY };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, []);
-
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging.current) {
-      // Hover
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const cx   = e.clientX - rect.left;
-      const cy   = e.clientY - rect.top;
-      const sid  = starAtPoint(cx, cy);
-      hoverStarRef.current = sid;
-
-      const rs   = renderStateRef.current;
-      const cand = rs?.candidates.find(c => c.starId === sid);
-      setHoverHint(cand?.hint ?? null);
-      return;
-    }
-
-    const dx = e.clientX - lastPointerRef.current.x;
-    const dy = e.clientY - lastPointerRef.current.y;
-    lastPointerRef.current = { x: e.clientX, y: e.clientY };
-
-    const totalDx = e.clientX - dragStartRef.current.x;
-    const totalDy = e.clientY - dragStartRef.current.y;
-    if (Math.sqrt(totalDx * totalDx + totalDy * totalDy) > 4) {
-      hasDraggedRef.current = true;
-    }
-
-    if (dragModeRef.current === "rotate") {
-      rotationRef.current += dx * 0.004;
-    } else {
-      panRef.current = { x: panRef.current.x + dx, y: panRef.current.y + dy };
-    }
-  }, [starAtPoint]);
-
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    if (!isDragging.current) return;
-    isDragging.current = false;
-
-    if (!hasDraggedRef.current && dragModeRef.current === "pan") {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const cx   = e.clientX - rect.left;
-      const cy   = e.clientY - rect.top;
-      const sid  = starAtPoint(cx, cy);
-      if (sid !== null) {
-        const rs = renderStateRef.current;
-        if (rs?.assignedSet.has(sid)) {
-          handleDeassign(sid);
-        } else {
-          handleAssign(sid);
-        }
-      }
-    }
-  }, [starAtPoint, handleAssign, handleDeassign]);
-
-  const onPointerLeave = useCallback(() => {
-    isDragging.current   = false;
-    hoverStarRef.current = null;
-    setHoverHint(null);
-  }, []);
-
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const factor = e.deltaY > 0 ? 0.92 : 1.09;
-    zoomRef.current = Math.max(0.4, Math.min(8, zoomRef.current * factor));
-  }, []);
-
-  const onDoubleClick = useCallback(() => {
-    panRef.current      = { x: 0, y: 0 };
-    zoomRef.current     = 1.0;
-    rotationRef.current = 0;
-  }, []);
-
-  // ── Derived display values ────────────────────────────────────────────────
-  const rs               = renderStateRef.current;
-  const cursor           = rs?.cursor ?? 0;
-  const inTransition     = rs?.inTransition ?? false;
-  const totalAssigned    = rs?.assignedSet.size ?? 0;
-  const done             = totalAssigned >= 1189;
-  const currentArchetype = rs?.currentArchetype ?? DEFAULT_ARCHETYPE;
-
-  const cursorChapter  = getChapter(cursor);
-  const cursorBook     = cursorChapter ? getBook(cursorChapter.bookIndex) : undefined;
-
-  const completedBook  = inTransition ? getBook((cursorBook?.index ?? 1) - 1) : null;
-  const nextBook       = inTransition ? cursorBook : null;
-  const currentBook    = !inTransition ? cursorBook : null;
-  const chaptersPlaced = rs?.currentBookStars.size ?? 0;
-  const chaptersInBook = currentBook?.chapterCount ?? 0;
-
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen w-screen overflow-hidden" style={{ background: BG, color: "#ccd4e8" }}>
+    <BuilderWorkspace
+      route="assign"
+      title="Builder"
+      subtitle="Load a generated sky field, assign chapters to stars, and export the arrangement that the library will render."
+      sidebarWidthClass="w-72"
+      sidebar={
+        <>
+          <p className="text-xs leading-relaxed text-white/45">
+            Assign uses the generated sky as a fixed stage. Amber stars are unassigned targets. White stars already carry chapters.
+          </p>
 
-      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-      <div className="w-64 flex-shrink-0 flex flex-col border-r border-white/8 overflow-y-auto"
-           style={{ background: "#07090f" }}>
+          <BuilderSection label="Mode">
+            <BuilderSubTabs
+              tabs={["view", "assign", "edit"] as const}
+              activeTab={activeTab}
+              onChange={handleTabChange}
+            />
+          </BuilderSection>
 
-        {/* Header */}
-        <div className="px-5 pt-5 pb-4 border-b border-white/8">
-          <p className="text-[10px] uppercase tracking-widest text-white/30 mb-1">Project Skymap</p>
-          <h1 className="text-sm font-medium text-white/80">Assignment</h1>
-        </div>
+          {activeTab === "view" && (
+            <BuilderSection label="View">
+              <FileInput label="Load arrangement" filename="arrangement.json"
+                         onChange={handleImportArrangement} />
+              {arrangementCount > 0
+                ? <p className="text-xs text-white/35">{arrangementCount.toLocaleString()} chapters</p>
+                : <p className="text-[10px] leading-relaxed text-white/20">
+                    Load an arrangement.json exported from Assign or Edit.
+                  </p>
+              }
+            </BuilderSection>
+          )}
 
-        {!session ? (
-          /* ── No session: load screen ─────────────────────────────────── */
-          <div className="flex flex-col gap-4 p-5">
-            <p className="text-xs text-white/40 leading-relaxed">
-              Load a sky field from the generator to begin assigning chapters.
-            </p>
-
-            <label className="flex flex-col gap-1 cursor-pointer">
-              <span className="text-[10px] uppercase tracking-widest text-white/30">
-                Load sky field
-              </span>
-              <div className="text-xs text-white/60 bg-white/5 border border-white/10
-                              rounded px-3 py-2 hover:bg-white/8 transition-colors text-center">
-                skyfield.json
-              </div>
-              <input
-                type="file" accept=".json" className="hidden"
-                onChange={e => handleFileInput(e, "skyfield")}
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 cursor-pointer">
-              <span className="text-[10px] uppercase tracking-widest text-white/30">
-                Resume session
-              </span>
-              <div className="text-xs text-white/60 bg-white/5 border border-white/10
-                              rounded px-3 py-2 hover:bg-white/8 transition-colors text-center">
-                skymap-session.json
-              </div>
-              <input
-                type="file" accept=".json" className="hidden"
-                onChange={e => handleFileInput(e, "session")}
-              />
-            </label>
-
-            {loadError && (
-              <p className="text-xs text-red-400/80">{loadError}</p>
-            )}
-
-            <a href="/generate"
-               className="text-[10px] text-white/25 hover:text-white/50 transition-colors text-center mt-2">
-              ← Go to generator
-            </a>
-          </div>
-
-        ) : done ? (
-          /* ── Complete ────────────────────────────────────────────────── */
-          <div className="flex flex-col gap-4 p-5">
-            <div className="text-center py-4">
-              <p className="text-white/60 text-sm">All 1,189 chapters assigned.</p>
-              <p className="text-white/30 text-xs mt-1">The sky is complete.</p>
-            </div>
-            <button onClick={handleExport}
-                    className="text-xs text-white/60 bg-white/5 border border-white/10
-                               rounded px-3 py-2 hover:bg-white/8 transition-colors">
-              Export session
-            </button>
-          </div>
-
-        ) : inTransition ? (
-          /* ── Book transition ─────────────────────────────────────────── */
-          <div className="flex flex-col gap-5 p-5">
-            <div>
-              <p className="text-xs text-white/30 mb-1">{completedBook?.divisionName}</p>
-              <p className="text-base font-medium text-white/85">{completedBook?.name}</p>
-              <p className="text-xs text-white/40 mt-0.5">complete</p>
-            </div>
-
-            <div className="w-full h-px bg-white/8" />
-
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2">Next</p>
-              <p className="text-sm font-medium text-white/80">{nextBook?.name}</p>
-              <p className="text-xs text-white/40 mt-0.5">{nextBook?.chapterCount} chapters</p>
-            </div>
-
-            {/* Archetype — set the shape intention for this book */}
-            <ArchetypePicker current={currentArchetype} onChange={handleSetArchetype} />
-
-            <div className="w-full h-px bg-white/8" />
-
-            <p className="text-xs text-white/30 leading-relaxed">
-              Suggested regions are shown as faint clouds. Click a glowing star to begin, or choose anywhere.
-            </p>
-
-            {hoverHint && (
-              <p className="text-xs italic text-white/40">{hoverHint}</p>
-            )}
-
-            <div className="w-full h-px bg-white/8" />
-
-            {/* Jump to */}
-            <JumpPanel books={BOOKS} onJump={handleJump} jumpBook={jumpBook} setJumpBook={setJumpBook} jumpChapter={jumpChapter} setJumpChapter={setJumpChapter} />
-
-            <div className="w-full h-px bg-white/8" />
-            <UndoButton onClick={handleUndo} />
-          </div>
-
-        ) : (
-          /* ── Assigning ───────────────────────────────────────────────── */
-          <div className="flex flex-col gap-4 p-5 flex-1">
-
-            {/* Current position */}
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-white/30 mb-1">
-                {currentBook?.divisionName}
-              </p>
-              <p className="text-sm font-medium text-white/85">{currentBook?.name}</p>
-              <div className="flex items-baseline gap-1.5 mt-0.5">
-                <span className="text-lg font-light text-white/90">
-                  {cursorChapter?.chapterNumber}
-                </span>
-                <span className="text-xs text-white/35">of {chaptersInBook}</span>
-              </div>
-            </div>
-
-            {/* Book progress bar */}
-            <div className="w-full h-0.5 rounded-full bg-white/8 overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-150"
-                style={{
-                  width:      `${(chaptersPlaced / Math.max(1, chaptersInBook)) * 100}%`,
-                  background: "rgba(255,215,120,0.6)",
-                }}
-              />
-            </div>
-
-            {/* Archetype — compact inline form during assignment */}
-            <ArchetypePicker current={currentArchetype} onChange={handleSetArchetype} compact />
-
-            {/* Hover hint */}
-            {hoverHint && (
-              <p className="text-xs italic text-white/35 min-h-[1rem]">{hoverHint}</p>
-            )}
-
-            {/* Overall progress */}
-            <div className="text-xs text-white/25 tabular-nums">
-              {totalAssigned.toLocaleString()} / 1,189 chapters
-            </div>
-
-            <div className="w-full h-px bg-white/8" />
-
-            {/* Jump to */}
-            <JumpPanel books={BOOKS} onJump={handleJump} jumpBook={jumpBook} setJumpBook={setJumpBook} jumpChapter={jumpChapter} setJumpChapter={setJumpChapter} />
-
-            <div className="w-full h-px bg-white/8" />
-
-            <UndoButton onClick={handleUndo} disabled={!session || session.undoStack.length === 0} />
-
-            {/* Show/hide lines */}
-            <button
-              onClick={() => setShowLines(p => !p)}
-              className="text-[10px] uppercase tracking-widest text-white/30
-                         hover:text-white/55 transition-colors text-left"
-            >
-              {showLines ? "Hide" : "Show"} lines
-            </button>
-
-            <div className="flex-1" />
-
-            {/* Snapshots */}
-            <div className="border-t border-white/8 pt-4">
-              <button
-                className="text-[10px] uppercase tracking-widest text-white/30
-                           hover:text-white/55 transition-colors w-full text-left"
-                onClick={() => setShowSnapPanel(p => !p)}
-              >
-                Snapshots {session.snapshots.length > 0 && `(${session.snapshots.length})`}
-              </button>
-
-              {showSnapPanel && (
-                <div className="mt-3 flex flex-col gap-2">
-                  <div className="flex gap-1.5">
-                    <input
-                      value={snapshotName}
-                      onChange={e => setSnapshotName(e.target.value)}
-                      placeholder="name…"
-                      onKeyDown={e => { if (e.key === "Enter") handleSaveSnapshot(); }}
-                      className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1
-                                 text-xs text-white/70 placeholder:text-white/20 outline-none"
-                    />
-                    <button
-                      onClick={handleSaveSnapshot}
-                      className="text-xs text-white/50 bg-white/5 border border-white/10
-                                 rounded px-2 py-1 hover:bg-white/10 transition-colors"
-                    >
-                      Save
-                    </button>
+          {activeTab === "assign" && (
+            !hasSkyField ? (
+              <BuilderSection label="Assign">
+                <p className="text-[10px] leading-relaxed text-white/20">
+                  Load a sky field to begin assigning chapters.
+                </p>
+                <FileInput label="Load sky field" filename="skyfield.json"
+                           onChange={handleImportSkyField} />
+                <FileInput label="Resume session" filename="skymap-session.json"
+                           onChange={handleImportSession} />
+              </BuilderSection>
+            ) : (
+              <>
+                <BuilderSection label="Progress">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-white/30">Assigned</span>
+                      <span className="tabular-nums text-white/55">
+                        {totalAssigned.toLocaleString()} / 1,189
+                      </span>
+                    </div>
+                    <div className="h-0.5 overflow-hidden rounded-full bg-white/8">
+                      <div className="h-full rounded-full transition-all duration-300"
+                           style={{
+                             width: `${(totalAssigned / 1189) * 100}%`,
+                             background: "rgba(255,160,60,0.55)",
+                           }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] uppercase tracking-widest text-white/22">
+                      <span>{unassignedCount.toLocaleString()} stars open</span>
+                      <span>{totalAssigned.toLocaleString()} placed</span>
+                    </div>
                   </div>
+                </BuilderSection>
 
-                  {session.snapshots.map((snap, idx) => (
-                    <div key={idx} className="flex items-center gap-1.5 group">
-                      <button
-                        onClick={() => handleRestoreSnapshot(idx)}
-                        className="flex-1 text-left text-xs text-white/45
-                                   hover:text-white/70 transition-colors truncate"
-                      >
-                        {snap.name}
+                <BuilderSection label="Sky Controls">
+                  <label className="flex items-center justify-between text-xs text-white/52">
+                    <span>Show book triangulation</span>
+                    <input
+                      type="checkbox"
+                      checked={showBookTriangulation}
+                      onChange={e => setShowBookTriangulation(e.target.checked)}
+                      className="accent-amber-400"
+                    />
+                  </label>
+                  <p className="text-[10px] leading-relaxed text-white/22">
+                    Builds per-book Delaunay groupings with division colours:
+                    blue for Law and Paul&apos;s Letters, violet for History and Revelation,
+                    red for Wisdom and General Letters, green for Major Prophets and Early Church,
+                    gold for Minor Prophets and the Gospels.
+                  </p>
+                </BuilderSection>
+
+                <BuilderSection label="Selection">
+                  {selectedChapter ? (
+                    <div className="flex flex-col gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                      <div className="flex items-start justify-between">
+                        <p className="text-[10px] uppercase tracking-widest text-white/30">Selected</p>
+                        <button onClick={handleClose}
+                                className="text-xs text-white/20 transition-colors hover:text-white/50">✕</button>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white/80">
+                          {selectedChapter.bookName} {selectedChapter.chapterNumber}
+                        </p>
+                        <p className="mt-0.5 text-xs text-white/35">
+                          {selectedVerses} verses · {selectedChapter.divisionName}
+                        </p>
+                      </div>
+                      <button onClick={handleDeassign}
+                              className="text-left text-xs text-red-400/50 transition-colors hover:text-red-400/80">
+                        Remove assignment
                       </button>
-                      <button
-                        onClick={() => handleDeleteSnapshot(idx)}
-                        className="text-[10px] text-white/20 hover:text-red-400/60
-                                   opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        ✕
+                      <button onClick={() => selectedChapterIndex !== undefined && handleArmReassign(selectedChapterIndex)}
+                              className="text-left text-xs text-amber-200/55 transition-colors hover:text-amber-100">
+                        Move assignment
                       </button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  ) : armedChapter ? (
+                    <div className="flex flex-col gap-2 rounded-lg border border-amber-400/18 bg-amber-500/[0.07] p-3">
+                      <div className="flex items-start justify-between">
+                        <p className="text-[10px] uppercase tracking-widest text-amber-100/65">Reassigning</p>
+                        <button onClick={handleClose}
+                                className="text-xs text-amber-100/35 transition-colors hover:text-amber-100/70">✕</button>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-amber-50">
+                          {armedChapter.bookName} {armedChapter.chapterNumber}
+                        </p>
+                        <p className="mt-0.5 text-xs text-amber-100/55">
+                          {armedVerses} verses · click an amber star to move this chapter
+                        </p>
+                      </div>
+                      <button onClick={handleClose}
+                              className="text-left text-xs text-amber-100/55 transition-colors hover:text-amber-100/85">
+                        Cancel move
+                      </button>
+                    </div>
+                  ) : selectedMarkerStar ? (
+                    <div className="flex flex-col gap-2 rounded-lg border border-amber-400/18 bg-amber-500/[0.07] p-3">
+                      <div className="flex items-start justify-between">
+                        <p className="text-[10px] uppercase tracking-widest text-amber-100/65">Target Star</p>
+                        <button onClick={handleClose}
+                                className="text-xs text-amber-100/35 transition-colors hover:text-amber-100/70">✕</button>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-amber-50">
+                          Unassigned Star #{selectedMarkerStar.id}
+                        </p>
+                        <p className="mt-0.5 text-xs text-amber-100/55">
+                          Magnitude {selectedMarkerStar.magnitude.toFixed(2)} · chapter picker open
+                        </p>
+                      </div>
+                      <p className="text-[10px] leading-relaxed text-amber-100/48">
+                        Type a reference such as `Gen 1`, `Ps 23`, or `Rom 8` in the floating picker to place a chapter here.
+                      </p>
+                      <button onClick={handleClose}
+                              className="text-left text-xs text-amber-100/55 transition-colors hover:text-amber-100/85">
+                        Clear selection
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] leading-relaxed text-white/20">
+                      Click an amber star to assign a chapter. Click a white star to inspect or remove its assignment.
+                    </p>
+                  )}
+                </BuilderSection>
 
-            {/* Export / reload */}
-            <div className="border-t border-white/8 pt-4 flex flex-col gap-2">
-              <button
-                onClick={handleExport}
-                className="text-[10px] uppercase tracking-widest text-white/30
-                           hover:text-white/55 transition-colors text-left"
-              >
-                Export session
-              </button>
-              <label className="text-[10px] uppercase tracking-widest text-white/20
-                                hover:text-white/40 transition-colors cursor-pointer text-left">
-                Load new sky
-                <input
-                  type="file" accept=".json" className="hidden"
-                  onChange={e => handleFileInput(e, "skyfield")}
-                />
-              </label>
+                {totalAssigned > 0 && (
+                  <BuilderSection label="Assigned Chapters">
+                    <AssignedChaptersList
+                      session={session!}
+                      verseCounts={VERSE_COUNTS}
+                      onFlyTo={handleFlyToChapter}
+                      onDeassign={handleDeassignByIndex}
+                      onArmReassign={handleArmReassign}
+                      armedChapterIndex={armedChapterIndex}
+                    />
+                  </BuilderSection>
+                )}
+
+                <BuilderSection label="Persistence">
+                  <p className="text-[10px] leading-relaxed text-white/24">
+                    Your assignment session autosaves in this browser. You can also export a session file and resume it later on any machine.
+                  </p>
+                  <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-widest text-white/22">Status</p>
+                    <p className="mt-1 text-xs text-white/52">{sessionStatus}</p>
+                    {lastSavedLabel && (
+                      <p className="mt-1 text-[10px] text-white/28">Last autosave: {lastSavedLabel}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => session && exportSession(session)}
+                    className="text-left text-xs text-white/45 transition-colors hover:text-white/70"
+                  >
+                    Download session file
+                  </button>
+                  <FileInput label="Resume session" filename="skymap-session.json"
+                             onChange={handleImportSession} />
+                  <FileInput label="Load new sky field" filename="skyfield.json"
+                             onChange={handleImportSkyField} />
+                </BuilderSection>
+
+                <BuilderSection label="Export">
+                  <button
+                    onClick={() => {
+                      if (session) {
+                        const { arrangement: arr } = buildAssignedScene(session);
+                        downloadJson(arr, "arrangement.json");
+                      }
+                    }}
+                    className="text-left text-xs text-white/45 transition-colors hover:text-white/70"
+                  >
+                    arrangement.json
+                  </button>
+                  <button
+                    onClick={() => session && exportAssignments(session)}
+                    className="text-left text-xs text-white/45 transition-colors hover:text-white/70"
+                  >
+                    Assignments JSON
+                  </button>
+                </BuilderSection>
+              </>
+            )
+          )}
+
+          {activeTab === "edit" && (
+            <BuilderSection label="Edit">
+              <FileInput label="Load arrangement" filename="arrangement.json"
+                         onChange={handleImportArrangement} />
+              {arrangementCount > 0 ? (
+                <>
+                  <p className="text-[10px] leading-relaxed text-white/20">
+                    Drag stars to reposition. Changes are held in memory until exported.
+                  </p>
+                  <p className="text-xs text-white/35">{arrangementCount.toLocaleString()} chapters</p>
+                  <button
+                    onClick={() => arrangement && downloadJson(arrangement, "arrangement.json")}
+                    className="pt-2 text-left text-xs text-white/45 transition-colors hover:text-white/70"
+                  >
+                    Export arrangement.json
+                  </button>
+                </>
+              ) : (
+                <p className="text-[10px] leading-relaxed text-white/20">
+                  Load an arrangement.json to begin editing star positions.
+                </p>
+              )}
+            </BuilderSection>
+          )}
+        </>
+      }
+    >
+      <div
+        ref={containerRef}
+        className="relative h-full"
+        onPointerDown={e => { lastPointerRef.current = { x: e.clientX, y: e.clientY }; }}
+      >
+        {activeTab === "assign" && hasSkyField ? (
+          <>
+            <canvas
+              ref={canvasRef}
+              className="h-full w-full cursor-grab active:cursor-grabbing"
+              onPointerDown={handleCanvasPointerDown}
+              onPointerMove={handleCanvasPointerMove}
+              onPointerUp={handleCanvasPointerUp}
+              onPointerLeave={() => { isDraggingRef.current = false; }}
+              onWheel={handleCanvasWheel}
+              onDoubleClick={handleCanvasDoubleClick}
+            />
+            <div className="pointer-events-none absolute bottom-5 left-5 rounded-md border border-white/10 bg-[#0b0f1a]/88 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/28">Sky Controls</p>
+              <p className="mt-1 text-xs text-white/52">
+                Drag to pan. Shift-drag to spin. Scroll to zoom. Double-click to reset.
+              </p>
+              <p className="mt-1 text-[10px] text-white/34">
+                Chapter labels appear from {ASSIGNED_LABEL_ZOOM_THRESHOLD.toFixed(2)}× zoom.
+              </p>
             </div>
+          </>
+        ) : config ? (
+          <StarMap
+            ref={mapRef}
+            config={config}
+            className="h-full w-full"
+            onArrangementChange={activeTab === "edit" ? handleArrangementChange : undefined}
+          />
+        ) : (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <p className="text-sm text-white/10">{emptyHint(activeTab)}</p>
           </div>
+        )}
+
+        {activeTab === "assign" && selectedMarkerStar && popupAnchor && (
+          <>
+            <div
+              className="pointer-events-none absolute z-30 rounded-full border border-amber-300/65 bg-amber-300/10 shadow-[0_0_0_1px_rgba(253,230,138,0.08),0_0_24px_rgba(251,191,36,0.22)]"
+              style={{
+                left: popupAnchor.x - 15,
+                top: popupAnchor.y - 15,
+                width: 30,
+                height: 30,
+              }}
+            />
+            <div className="pointer-events-none absolute left-5 top-5 z-30 rounded-md border border-amber-400/18 bg-[#100d08]/90 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-amber-100/45">Assigning</p>
+              <p className="mt-1 text-sm text-amber-50">Star #{selectedMarkerStar.id}</p>
+              <p className="text-[10px] text-amber-100/45">Choose a chapter in the floating picker</p>
+            </div>
+          </>
+        )}
+
+        {activeTab === "assign" && armedChapter && !selectedMarkerStar && (
+          <div className="pointer-events-none absolute left-5 top-5 z-30 rounded-md border border-amber-400/18 bg-[#100d08]/90 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-amber-100/45">Move Assignment</p>
+            <p className="mt-1 text-sm text-amber-50">{armedChapter.bookName} {armedChapter.chapterNumber}</p>
+            <p className="text-[10px] text-amber-100/45">Click an amber star to place it</p>
+          </div>
+        )}
+
+        {activeTab === "assign" && popupAnchor && selectedMarkerStarId !== null && (
+          <>
+            <div className="absolute inset-0 z-40" style={{ pointerEvents: "auto" }} onClick={handleClose} />
+            <AssignPopup
+              anchor={popupAnchor}
+              containerRef={containerRef}
+              verseCounts={VERSE_COUNTS}
+              assignedChapters={assignedChapters}
+              onAssign={handleAssign}
+              onClose={handleClose}
+            />
+          </>
         )}
       </div>
+    </BuilderWorkspace>
+  );
+}
 
-      {/* ── Canvas ───────────────────────────────────────────────────────── */}
-      <div className="flex-1 relative">
-        <canvas
-          ref={canvasRef}
-          className="w-full h-full"
-          style={{ cursor: "crosshair" }}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerLeave={onPointerLeave}
-          onWheel={onWheel}
-          onDoubleClick={onDoubleClick}
-          onContextMenu={e => e.preventDefault()}
-        />
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-        {/* Gesture hints — bottom edge, very dim */}
-        <div className="absolute bottom-3 left-0 right-0 flex justify-center pointer-events-none">
-          <p className="text-[10px] text-white/15 tracking-wide select-none">
-            scroll · zoom &nbsp;·&nbsp; drag · pan &nbsp;·&nbsp; right-drag · rotate &nbsp;·&nbsp; double-click · reset
-          </p>
+function emptyHint(tab: Tab): string {
+  if (tab === "view")   return "load an arrangement.json to view";
+  if (tab === "assign") return "load a sky field to begin assigning";
+  return "load an arrangement.json to edit";
+}
+
+// ---------------------------------------------------------------------------
+// FileInput
+// ---------------------------------------------------------------------------
+
+function FileInput({ label, filename, onChange }: {
+  label:    string;
+  filename: string;
+  onChange: (file: File) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 cursor-pointer">
+      <span className="text-[10px] uppercase tracking-widest text-white/30">{label}</span>
+      <div className="text-xs text-white/55 bg-white/5 border border-white/10 rounded
+                      px-3 py-2 hover:bg-white/8 transition-colors text-center">
+        {filename}
+      </div>
+      <input type="file" accept=".json" className="hidden"
+        onChange={e => {
+          const f = e.target.files?.[0];
+          if (f) onChange(f);
+          e.currentTarget.value = "";
+        }} />
+    </label>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AssignedChaptersList — scrollable, searchable list of placed chapters
+// ---------------------------------------------------------------------------
+
+function AssignedChaptersList({
+  session, verseCounts, onFlyTo, onDeassign, onArmReassign, armedChapterIndex,
+}: {
+  session:    Session;
+  verseCounts: number[];
+  onFlyTo:    (chapterGlobalIndex: number) => void;
+  onDeassign: (chapterGlobalIndex: number) => void;
+  onArmReassign: (chapterGlobalIndex: number) => void;
+  armedChapterIndex: number | null;
+}) {
+  const [search,            setSearch]            = useState("");
+  const [confirmingRemoval, setConfirmingRemoval] = useState<number | null>(null);
+
+  const chapters = useMemo(() => {
+    return Object.keys(session.assignments)
+      .map(k => CANON[Number(k)])
+      .filter((ch): ch is NonNullable<typeof ch> => ch !== undefined)
+      .sort((a, b) => a.globalIndex - b.globalIndex);
+  }, [session.assignments]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return chapters;
+    return chapters.filter(ch =>
+      ch.bookName.toLowerCase().includes(q) ||
+      ch.bookKey.toLowerCase().startsWith(q) ||
+      ch.divisionName.toLowerCase().includes(q) ||
+      ch.testament.toLowerCase().includes(q) ||
+      String(ch.chapterNumber).startsWith(q) ||
+      `${ch.bookName} ${ch.chapterNumber}`.toLowerCase().includes(q),
+    );
+  }, [chapters, search]);
+
+  const grouped = useMemo(() => {
+    const groups: Array<{
+      bookKey: string;
+      bookName: string;
+      divisionName: string;
+      testament: "Old" | "New";
+      chapterCount: number;
+      assignedCount: number;
+      chapters: typeof filtered;
+    }> = [];
+
+    for (const chapter of filtered) {
+      const lastGroup = groups[groups.length - 1];
+      if (!lastGroup || lastGroup.bookKey !== chapter.bookKey) {
+        groups.push({
+          bookKey: chapter.bookKey,
+          bookName: chapter.bookName,
+          divisionName: chapter.divisionName,
+          testament: chapter.testament,
+          chapterCount: chapter.bookTotal,
+          assignedCount: 1,
+          chapters: [chapter],
+        });
+        continue;
+      }
+
+      lastGroup.chapters.push(chapter);
+      lastGroup.assignedCount += 1;
+    }
+
+    return groups;
+  }, [filtered]);
+
+  const firstAssigned = chapters[0];
+  const lastAssigned = chapters[chapters.length - 1];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-widest text-white/25">Chapters</p>
+        <span className="text-[10px] text-white/20 tabular-nums">{chapters.length}</span>
+      </div>
+      {firstAssigned && lastAssigned && (
+        <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-white/22">
+            <span>Canon span</span>
+            <span>{grouped.length} books</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-3 text-xs text-white/52">
+            <span className="truncate">{firstAssigned.bookName} {firstAssigned.chapterNumber}</span>
+            <span className="text-white/18">to</span>
+            <span className="truncate text-right">{lastAssigned.bookName} {lastAssigned.chapterNumber}</span>
+          </div>
         </div>
+      )}
+      <input
+        type="text"
+        placeholder="Search testament, division, book, or ref…"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        className="bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs
+                   text-white/70 outline-none placeholder:text-white/20 w-full"
+      />
+      <div className="flex flex-col gap-0.5 overflow-y-auto" style={{ maxHeight: 192 }}>
+        {grouped.map(group => (
+          <div key={group.bookKey} className="rounded-md border border-white/8 bg-white/[0.02]">
+            <div className="flex items-start justify-between gap-3 border-b border-white/6 px-2.5 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-white/70">{group.bookName}</p>
+                <p className="truncate text-[10px] uppercase tracking-widest text-white/22">
+                  {group.testament} · {group.divisionName}
+                </p>
+              </div>
+              <div className="text-right text-[10px] tabular-nums text-white/24">
+                <p>{group.assignedCount}/{group.chapterCount}</p>
+                <p>assigned</p>
+              </div>
+            </div>
 
-        {!session && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <p className="text-white/10 text-sm">load a sky field to begin</p>
+            <div className="flex flex-col gap-0.5 p-1">
+              {group.chapters.map(ch => (
+                <div key={ch.globalIndex}>
+                  {confirmingRemoval === ch.globalIndex ? (
+                    <div className="flex items-center gap-1.5 rounded px-2 py-1.5
+                                    border border-red-500/15 bg-red-500/8">
+                      <span className="min-w-0 flex-1 truncate text-xs text-white/40">
+                        {ch.bookName} {ch.chapterNumber}
+                      </span>
+                      <span className="flex-shrink-0 text-[10px] text-white/35">Remove?</span>
+                      <button
+                        onClick={() => { onDeassign(ch.globalIndex); setConfirmingRemoval(null); }}
+                        className="flex-shrink-0 px-0.5 text-[10px] font-medium text-red-400/70 transition-colors hover:text-red-400"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={() => setConfirmingRemoval(null)}
+                        className="flex-shrink-0 px-0.5 text-[10px] text-white/30 transition-colors hover:text-white/60"
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className={`group flex items-center justify-between rounded px-2 py-1 transition-colors cursor-pointer ${
+                        armedChapterIndex === ch.globalIndex ? "bg-amber-500/[0.10]" : "hover:bg-white/5"
+                      }`}
+                      onClick={() => onFlyTo(ch.globalIndex)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className={`truncate text-xs transition-colors ${
+                          armedChapterIndex === ch.globalIndex
+                            ? "text-amber-50"
+                            : "text-white/55 group-hover:text-white/80"
+                        }`}>
+                          {ch.bookName} {ch.chapterNumber}
+                        </p>
+                        <p className={`text-[10px] tabular-nums ${
+                          armedChapterIndex === ch.globalIndex ? "text-amber-100/50" : "text-white/20"
+                        }`}>
+                          Canon #{String(ch.globalIndex + 1).padStart(4, "0")}
+                        </p>
+                      </div>
+                      <div className="ml-2 flex flex-shrink-0 items-center gap-1.5">
+                        <span className="text-[10px] tabular-nums text-white/20">
+                          {verseCounts[ch.globalIndex]}v
+                        </span>
+                        <button
+                          onClick={e => { e.stopPropagation(); onArmReassign(ch.globalIndex); }}
+                          className={`px-1 text-[10px] uppercase tracking-widest transition-colors ${
+                            armedChapterIndex === ch.globalIndex
+                              ? "text-amber-100/75"
+                              : "text-white/22 hover:text-amber-100/70"
+                          }`}
+                          aria-label={`Move ${ch.bookName} ${ch.chapterNumber}`}
+                        >
+                          Move
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); setConfirmingRemoval(ch.globalIndex); }}
+                          className="w-3.5 text-center text-[11px] leading-none text-transparent transition-colors group-hover:text-white/25 hover:!text-white/65"
+                          aria-label={`Remove ${ch.bookName} ${ch.chapterNumber}`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        )}
-
-        {done && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <p className="text-white/15 text-sm tracking-widest uppercase">complete</p>
-          </div>
+        ))}
+        {filtered.length === 0 && (
+          <p className="text-[10px] text-white/20 px-2 py-1">No matches</p>
         )}
       </div>
     </div>
@@ -1098,135 +1596,107 @@ export default function AssignPage() {
 }
 
 // ---------------------------------------------------------------------------
-// Small reusable pieces
+// AssignPopup — floating command-palette style chapter picker
 // ---------------------------------------------------------------------------
 
-function UndoButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="text-[10px] uppercase tracking-widest text-white/30
-                 hover:text-white/55 disabled:opacity-30 disabled:cursor-not-allowed
-                 transition-colors text-left"
-    >
-      Undo  <span className="text-white/20 normal-case not-italic">⌘Z</span>
-    </button>
-  );
-}
-
-import type { Book } from "./canon";
-
-function JumpPanel({
-  books, onJump,
-  jumpBook, setJumpBook,
-  jumpChapter, setJumpChapter,
+function AssignPopup({
+  anchor, containerRef, verseCounts, assignedChapters, onAssign, onClose,
 }: {
-  books:          Book[];
-  onJump:         (globalIndex: number) => void;
-  jumpBook:       number;
-  setJumpBook:    (v: number) => void;
-  jumpChapter:    number;
-  setJumpChapter: (v: number) => void;
+  anchor:            { x: number; y: number };
+  containerRef:      React.RefObject<HTMLDivElement | null>;
+  verseCounts:       number[];
+  assignedChapters:  Set<number>;
+  onAssign:          (globalIndex: number) => void;
+  onClose:           () => void;
 }) {
-  const selectedBook = books[jumpBook];
-  const maxChapter   = selectedBook?.chapterCount ?? 1;
+  const [query,       setQuery]       = useState("");
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const go = () => {
-    if (!selectedBook) return;
-    const ch = Math.max(1, Math.min(jumpChapter, maxChapter));
-    onJump(selectedBook.startGlobalIndex + ch - 1);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const results = useMemo(() => parseChapterQuery(query), [query]);
+
+  // Reset highlight when result list changes
+  useEffect(() => { setSelectedIdx(0); }, [results.length]);
+
+  // Position: right of click, clamped to container bounds
+  const style = useMemo(() => {
+    const W    = containerRef.current?.clientWidth  ?? 1200;
+    const H    = containerRef.current?.clientHeight ?? 800;
+    const popW = 256;
+    let left   = anchor.x + 20;
+    let top    = anchor.y - 16;
+    if (left + popW > W - 8) left = anchor.x - popW - 20;
+    if (left < 8)             left = 8;
+    if (top  < 8)             top  = 8;
+    if (top  > H - 56)        top  = H - 56;
+    return { left, top, width: popW };
+  }, [anchor, containerRef]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") { onClose(); return; }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIdx(i => Math.min(i + 1, results.length - 1));
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIdx(i => Math.max(i - 1, 0));
+    }
+    if (e.key === "Enter") {
+      const ch = results[selectedIdx];
+      if (ch) onAssign(ch.globalIndex);
+    }
   };
 
   return (
-    <div>
-      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2">Jump to</p>
-      <div className="flex flex-col gap-1.5">
-        <select
-          value={jumpBook}
-          onChange={e => { setJumpBook(Number(e.target.value)); setJumpChapter(1); }}
-          className="w-full bg-white/5 border border-white/10 rounded px-2 py-1
-                     text-xs text-white/60 outline-none"
-        >
-          {books.map(book => (
-            <option key={book.index} value={book.index}>{book.name}</option>
-          ))}
-        </select>
-        <div className="flex gap-1.5">
-          <input
-            type="number"
-            min={1}
-            max={maxChapter}
-            value={jumpChapter}
-            onChange={e => setJumpChapter(Number(e.target.value))}
-            onKeyDown={e => { if (e.key === "Enter") go(); }}
-            className="w-14 bg-white/5 border border-white/10 rounded px-2 py-1
-                       text-xs text-white/60 outline-none"
-          />
-          <button
-            onClick={go}
-            className="flex-1 text-xs text-white/50 bg-white/5 border border-white/10
-                       rounded px-2 py-1 hover:bg-white/10 transition-colors"
-          >
-            Go
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+    <div
+      className="absolute z-50 flex flex-col rounded-lg border border-white/15 shadow-2xl overflow-hidden"
+      style={{ ...style, background: "#0c0f1a" }}
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Gen 1, Ps 23, Rev 3…"
+        className="px-3 py-2.5 text-sm text-white/80 bg-transparent border-b border-white/10
+                   outline-none placeholder:text-white/25 w-full"
+      />
 
-function ArchetypePicker({
-  current,
-  onChange,
-  compact = false,
-}: {
-  current:  ShapeArchetype;
-  onChange: (a: ShapeArchetype) => void;
-  compact?: boolean;
-}) {
-  if (compact) {
-    return (
-      <div className="flex gap-1 flex-wrap">
-        {ARCHETYPE_ORDER.map(id => (
-          <button
-            key={id}
-            onClick={() => onChange(id)}
-            className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-              current === id
-                ? "bg-white/15 text-white/80"
-                : "text-white/30 hover:text-white/50"
-            }`}
-          >
-            {ARCHETYPES[id]!.label}
-          </button>
-        ))}
-      </div>
-    );
-  }
-  return (
-    <div>
-      <p className="text-[10px] uppercase tracking-widest text-white/30 mb-2">Shape</p>
-      <div className="flex flex-col gap-0.5">
-        {ARCHETYPE_ORDER.map(id => {
-          const arch = ARCHETYPES[id]!;
-          const isSelected = current === id;
-          return (
-            <button
-              key={id}
-              onClick={() => onChange(id)}
-              className={`text-left px-2 py-1.5 rounded text-xs transition-colors ${
-                isSelected ? "bg-white/10 text-white/85" : "text-white/35 hover:text-white/55 hover:bg-white/5"
-              }`}
-            >
-              <span className="font-medium">{arch.label}</span>
-              <span className={`ml-2 text-[10px] ${isSelected ? "text-white/45" : "text-white/20"}`}>
-                {arch.description}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {results.length > 0 ? (
+        <div className="flex flex-col py-1 overflow-y-auto" style={{ maxHeight: 240 }}>
+          {results.map((ch, idx) => {
+            const isAssigned = assignedChapters.has(ch.globalIndex);
+            return (
+              <button
+                key={ch.globalIndex}
+                onMouseEnter={() => setSelectedIdx(idx)}
+                onClick={() => onAssign(ch.globalIndex)}
+                className={`flex items-center justify-between px-3 py-1.5 text-left transition-colors ${
+                  idx === selectedIdx ? "bg-white/10" : "hover:bg-white/5"
+                }`}
+              >
+                <span className={`text-sm ${isAssigned ? "text-white/35" : "text-white/80"}`}>
+                  {ch.bookName} {ch.chapterNumber}
+                </span>
+                <span className="flex items-center gap-2 text-[10px] tabular-nums ml-3">
+                  {isAssigned && (
+                    <span className="text-amber-500/50">assigned</span>
+                  )}
+                  <span className="text-white/25">{verseCounts[ch.globalIndex]}v</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : query.length > 0 ? (
+        <p className="px-3 py-2.5 text-xs text-white/25">No match</p>
+      ) : (
+        <p className="px-3 py-2.5 text-xs text-white/20">type a book or reference</p>
+      )}
     </div>
   );
 }
