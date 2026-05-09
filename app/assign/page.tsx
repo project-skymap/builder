@@ -18,7 +18,7 @@ import { BuilderSection, BuilderSubTabs, BuilderWorkspace } from "../components/
 // Types
 // ---------------------------------------------------------------------------
 
-type Tab = "view" | "assign" | "edit";
+type Tab = "view" | "assign";
 
 // ---------------------------------------------------------------------------
 // Verse counts
@@ -39,9 +39,12 @@ function buildVerseCounts(): number[] {
 }
 
 const VERSE_COUNTS = buildVerseCounts();
+const TOTAL_CHAPTERS = CANON.length;
 const MAX_VERSE_COUNT = Math.max(...VERSE_COUNTS);
 const ASSIGNED_LABEL_ZOOM_THRESHOLD = 1.65;
 const TRIANGULATION_MAX_EDGE_FACTOR = 2.35;
+const SKY_FIELD_RENDER_RADIUS = 1.25;
+const SKY_FIELD_FADE_START = SKY_FIELD_RENDER_RADIUS * 0.88;
 
 function assignedStarRadius(verseCount: number): number {
   const normalized = Math.max(0, Math.min(1, verseCount / MAX_VERSE_COUNT));
@@ -51,6 +54,86 @@ function assignedStarRadius(verseCount: number): number {
 function assignedStarScale(verseCount: number): number {
   const normalized = Math.max(0, Math.min(1, verseCount / MAX_VERSE_COUNT));
   return 1 + Math.pow(normalized, 0.65) * 1.55;
+}
+
+function projectSkyCoordinate(value: number): number {
+  return value / SKY_FIELD_RENDER_RADIUS;
+}
+
+type AssignmentHealth = {
+  totalStars: number;
+  totalChapters: number;
+  assignedChapters: number;
+  validAssignedChapters: number;
+  uniqueAssignedStars: number;
+  duplicateAssignments: number;
+  invalidAssignments: number;
+  openStars: number;
+  remainingChapters: number;
+  capacityDelta: number;
+  canCompleteAssignment: boolean;
+  visibleOpenStars: number;
+  edgeOpenStars: number;
+  hiddenOpenStars: number;
+};
+
+function getAssignmentHealth(session: Session | null): AssignmentHealth {
+  const totalStars = session?.skyField.stars.length ?? 0;
+  const assignments = session?.assignments ?? {};
+  const assignedChapters = Object.keys(assignments).length;
+  const starIds = new Set((session?.skyField.stars ?? []).map(star => star.id));
+
+  let validAssignedChapters = 0;
+  let invalidAssignments = 0;
+  const usedStars = new Set<number>();
+  let visibleOpenStars = 0;
+  let edgeOpenStars = 0;
+  let hiddenOpenStars = 0;
+
+  for (const starId of Object.values(assignments)) {
+    if (!starIds.has(starId)) {
+      invalidAssignments += 1;
+      continue;
+    }
+    validAssignedChapters += 1;
+    usedStars.add(starId);
+  }
+
+  const uniqueAssignedStars = usedStars.size;
+  const duplicateAssignments = Math.max(0, validAssignedChapters - uniqueAssignedStars);
+  const openStars = Math.max(0, totalStars - uniqueAssignedStars);
+  const remainingChapters = Math.max(0, TOTAL_CHAPTERS - assignedChapters);
+  const capacityDelta = totalStars - TOTAL_CHAPTERS;
+  const canCompleteAssignment = openStars >= remainingChapters && invalidAssignments === 0;
+
+  for (const star of session?.skyField.stars ?? []) {
+    if (usedStars.has(star.id)) continue;
+    const r = Math.sqrt(star.x * star.x + star.y * star.y);
+    if (r < SKY_FIELD_FADE_START) {
+      visibleOpenStars += 1;
+    } else if (r < SKY_FIELD_RENDER_RADIUS) {
+      edgeOpenStars += 1;
+    } else {
+      hiddenOpenStars += 1;
+    }
+  }
+
+  return {
+    totalStars,
+    totalChapters: TOTAL_CHAPTERS,
+    assignedChapters,
+    validAssignedChapters,
+    uniqueAssignedStars,
+    duplicateAssignments,
+    invalidAssignments,
+    openStars,
+    remainingChapters,
+    capacityDelta,
+    canCompleteAssignment,
+    visibleOpenStars,
+    edgeOpenStars,
+    hiddenOpenStars,
+  };
 }
 
 function drawGeneratorStyleStar(
@@ -106,10 +189,10 @@ function drawGeneratorStyleStar(
 function divisionTriangulationColor(divisionName: string): string {
   const key = divisionName.toLowerCase();
   if (key === "the law" || key === "paul's letters") return "rgba(110,170,255,0.58)";
-  if (key === "history" || key === "revelation") return "rgba(182,120,255,0.58)";
+  if (key === "history" || key === "prophecy") return "rgba(182,120,255,0.58)";
   if (key === "wisdom" || key === "general letters") return "rgba(255,110,110,0.58)";
   if (key === "major prophets" || key === "early church") return "rgba(110,214,146,0.58)";
-  if (key === "minor prophets" || key === "the gospels") return "rgba(255,214,92,0.64)";
+  if (key === "minor prophets" || key === "gospels") return "rgba(255,214,92,0.64)";
   return "rgba(180,190,220,0.48)";
 }
 
@@ -520,13 +603,13 @@ export default function BuilderPage() {
       },
     };
 
-    if (activeTab === "view" || activeTab === "edit") {
+    if (activeTab === "view") {
       if (!viewModel || !arrangement) return null;
       return {
         ...base,
         model:              viewModel,
         arrangement,
-        editable:           activeTab === "edit",
+        editable:           false,
         showBookLabels:     true,
         showChapterLabels:  true,
         showDivisionLabels: false,
@@ -593,12 +676,6 @@ export default function BuilderPage() {
     setArmedChapterIndex(null);
   }, []);
 
-  // ── Edit handler ───────────────────────────────────────────────────────────
-
-  const handleArrangementChange = useCallback((updated: StarArrangement) => {
-    setArrangement(updated);
-  }, []);
-
   const handleDeassignByIndex = useCallback((chapterGlobalIndex: number) => {
     setSession(prev => {
       if (!prev) return prev;
@@ -633,9 +710,10 @@ export default function BuilderPage() {
 
   // ── Derived display values ─────────────────────────────────────────────────
 
-  const totalAssigned      = Object.keys(session?.assignments ?? {}).length;
-  const hasSkyField        = (session?.skyField.stars.length ?? 0) > 0;
-  const unassignedCount    = hasSkyField ? Math.max(0, (session?.skyField.stars.length ?? 0) - totalAssigned) : 0;
+  const assignmentHealth   = useMemo(() => getAssignmentHealth(session), [session]);
+  const totalAssigned      = assignmentHealth.assignedChapters;
+  const hasSkyField        = assignmentHealth.totalStars > 0;
+  const unassignedCount    = assignmentHealth.openStars;
   const arrangementCount   = arrangement
     ? Object.keys(arrangement).filter(k => /^C:/.test(k)).length
     : 0;
@@ -732,8 +810,8 @@ export default function BuilderPage() {
     const radius = baseRadius * zoomRef.current;
     const cos = Math.cos(spinRef.current);
     const sin = Math.sin(spinRef.current);
-    const rx = star.x * cos + star.y * sin;
-    const rz = -star.x * sin + star.y * cos;
+    const rx = projectSkyCoordinate(star.x * cos + star.y * sin);
+    const rz = projectSkyCoordinate(-star.x * sin + star.y * cos);
     panRef.current = { x: -rx * radius, y: -rz * radius };
   }, []);
 
@@ -929,10 +1007,10 @@ export default function BuilderPage() {
           ctx.save();
           ctx.beginPath();
           for (const edge of book.edges) {
-            const ax = scx + (edge.a.x * cos + edge.a.y * sin) * radius;
-            const ay = scy + (-edge.a.x * sin + edge.a.y * cos) * radius;
-            const bx = scx + (edge.b.x * cos + edge.b.y * sin) * radius;
-            const by = scy + (-edge.b.x * sin + edge.b.y * cos) * radius;
+            const ax = scx + projectSkyCoordinate(edge.a.x * cos + edge.a.y * sin) * radius;
+            const ay = scy + projectSkyCoordinate(-edge.a.x * sin + edge.a.y * cos) * radius;
+            const bx = scx + projectSkyCoordinate(edge.b.x * cos + edge.b.y * sin) * radius;
+            const by = scy + projectSkyCoordinate(-edge.b.x * sin + edge.b.y * cos) * radius;
             ctx.moveTo(ax, ay);
             ctx.lineTo(bx, by);
           }
@@ -947,11 +1025,15 @@ export default function BuilderPage() {
 
       for (const star of session.skyField.stars) {
         const projR = Math.sqrt(star.x * star.x + star.y * star.y);
-        const fade = projR >= 1 ? 0 : projR > 0.88 ? Math.max(0, (1 - projR) / 0.12) : 1;
+        const fade = projR >= SKY_FIELD_RENDER_RADIUS
+          ? 0
+          : projR > SKY_FIELD_FADE_START
+            ? Math.max(0, (SKY_FIELD_RENDER_RADIUS - projR) / (SKY_FIELD_RENDER_RADIUS - SKY_FIELD_FADE_START))
+            : 1;
         if (fade <= 0) continue;
 
-        const rx = star.x * cos + star.y * sin;
-        const rz = -star.x * sin + star.y * cos;
+        const rx = projectSkyCoordinate(star.x * cos + star.y * sin);
+        const rz = projectSkyCoordinate(-star.x * sin + star.y * cos);
         const sx = scx + rx * radius;
         const sy = scy + rz * radius;
         const mag = star.magnitude;
@@ -1033,7 +1115,7 @@ export default function BuilderPage() {
     <BuilderWorkspace
       route="assign"
       title="Builder"
-      subtitle="Load a generated sky field, assign chapters to stars, and export the arrangement that the library will render."
+      subtitle="Load a generated sky field, assign chapters to stars, then export the session into Refine for constellation shaping."
       sidebarWidthClass="w-72"
       sidebar={
         <>
@@ -1043,7 +1125,7 @@ export default function BuilderPage() {
 
           <BuilderSection label="Mode">
             <BuilderSubTabs
-              tabs={["view", "assign", "edit"] as const}
+              tabs={["view", "assign"] as const}
               activeTab={activeTab}
               onChange={handleTabChange}
             />
@@ -1080,13 +1162,13 @@ export default function BuilderPage() {
                     <div className="flex justify-between text-xs">
                       <span className="text-white/30">Assigned</span>
                       <span className="tabular-nums text-white/55">
-                        {totalAssigned.toLocaleString()} / 1,189
+                        {totalAssigned.toLocaleString()} / {TOTAL_CHAPTERS.toLocaleString()}
                       </span>
                     </div>
                     <div className="h-0.5 overflow-hidden rounded-full bg-white/8">
                       <div className="h-full rounded-full transition-all duration-300"
                            style={{
-                             width: `${(totalAssigned / 1189) * 100}%`,
+                             width: `${(totalAssigned / TOTAL_CHAPTERS) * 100}%`,
                              background: "rgba(255,160,60,0.55)",
                            }} />
                     </div>
@@ -1095,6 +1177,85 @@ export default function BuilderPage() {
                       <span>{totalAssigned.toLocaleString()} placed</span>
                     </div>
                   </div>
+                </BuilderSection>
+
+                <BuilderSection label="Coverage">
+                  <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2">
+                    <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-white/22">
+                      <span>Capacity</span>
+                      <span className={assignmentHealth.canCompleteAssignment ? "text-emerald-300/70" : "text-amber-200/70"}>
+                        {assignmentHealth.canCompleteAssignment ? "Completable" : "Attention"}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-col gap-1 text-xs">
+                      <div className="flex items-center justify-between text-white/48">
+                        <span>Sky field stars</span>
+                        <span className="tabular-nums text-white/72">{assignmentHealth.totalStars.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-white/48">
+                        <span>Bible chapters</span>
+                        <span className="tabular-nums text-white/72">{assignmentHealth.totalChapters.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-white/48">
+                        <span>Open stars vs chapters left</span>
+                        <span className="tabular-nums text-white/72">
+                          {assignmentHealth.openStars.toLocaleString()} / {assignmentHealth.remainingChapters.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-white/48">
+                        <span>Visible open stars</span>
+                        <span className="tabular-nums text-white/72">{assignmentHealth.visibleOpenStars.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-white/48">
+                        <span>Edge-band open stars</span>
+                        <span className="tabular-nums text-white/72">{assignmentHealth.edgeOpenStars.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-white/48">
+                        <span>Hidden open stars</span>
+                        <span className={`tabular-nums ${
+                          assignmentHealth.hiddenOpenStars === 0 ? "text-emerald-300/70" : "text-amber-200/70"
+                        }`}>
+                          {assignmentHealth.hiddenOpenStars.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-white/48">
+                        <span>Headroom</span>
+                        <span className={`tabular-nums ${
+                          assignmentHealth.capacityDelta >= 0 ? "text-emerald-300/70" : "text-amber-200/70"
+                        }`}>
+                          {assignmentHealth.capacityDelta >= 0 ? "+" : ""}
+                          {assignmentHealth.capacityDelta.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-white/48">
+                        <span>Unique stars claimed</span>
+                        <span className="tabular-nums text-white/72">
+                          {assignmentHealth.uniqueAssignedStars.toLocaleString()} / {assignmentHealth.validAssignedChapters.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {assignmentHealth.invalidAssignments > 0 || assignmentHealth.duplicateAssignments > 0 ? (
+                    <p className="text-[10px] leading-relaxed text-amber-100/58">
+                      Session integrity warning:
+                      {" "}
+                      {assignmentHealth.invalidAssignments > 0
+                        ? `${assignmentHealth.invalidAssignments.toLocaleString()} assignment${assignmentHealth.invalidAssignments === 1 ? "" : "s"} point to missing stars. `
+                        : ""}
+                      {assignmentHealth.duplicateAssignments > 0
+                        ? `${assignmentHealth.duplicateAssignments.toLocaleString()} assignment${assignmentHealth.duplicateAssignments === 1 ? "" : "s"} share a star that is already claimed.`
+                        : ""}
+                    </p>
+                  ) : assignmentHealth.hiddenOpenStars > 0 ? (
+                    <p className="text-[10px] leading-relaxed text-amber-100/58">
+                      Some open stars still fall outside the current render radius. That indicates a mismatch between generated coordinates and the assign viewport.
+                    </p>
+                  ) : (
+                    <p className="text-[10px] leading-relaxed text-white/24">
+                      This session is balanced when open stars match chapters left. `Hidden open stars` should stay at `0`; any remainder should be either clearly visible or sitting in the edge fade band.
+                    </p>
+                  )}
                 </BuilderSection>
 
                 <BuilderSection label="Sky Controls">
@@ -1205,7 +1366,7 @@ export default function BuilderPage() {
 
                 <BuilderSection label="Persistence">
                   <p className="text-[10px] leading-relaxed text-white/24">
-                    Your assignment session autosaves in this browser. You can also export a session file and resume it later on any machine.
+                    Your assignment session autosaves in this browser. Export the session file when you are ready to continue into Refine.
                   </p>
                   <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2">
                     <p className="text-[10px] uppercase tracking-widest text-white/22">Status</p>
@@ -1249,30 +1410,6 @@ export default function BuilderPage() {
             )
           )}
 
-          {activeTab === "edit" && (
-            <BuilderSection label="Edit">
-              <FileInput label="Load arrangement" filename="arrangement.json"
-                         onChange={handleImportArrangement} />
-              {arrangementCount > 0 ? (
-                <>
-                  <p className="text-[10px] leading-relaxed text-white/20">
-                    Drag stars to reposition. Changes are held in memory until exported.
-                  </p>
-                  <p className="text-xs text-white/35">{arrangementCount.toLocaleString()} chapters</p>
-                  <button
-                    onClick={() => arrangement && downloadJson(arrangement, "arrangement.json")}
-                    className="pt-2 text-left text-xs text-white/45 transition-colors hover:text-white/70"
-                  >
-                    Export arrangement.json
-                  </button>
-                </>
-              ) : (
-                <p className="text-[10px] leading-relaxed text-white/20">
-                  Load an arrangement.json to begin editing star positions.
-                </p>
-              )}
-            </BuilderSection>
-          )}
         </>
       }
     >
@@ -1308,7 +1445,7 @@ export default function BuilderPage() {
             ref={mapRef}
             config={config}
             className="h-full w-full"
-            onArrangementChange={activeTab === "edit" ? handleArrangementChange : undefined}
+            onArrangementChange={undefined}
           />
         ) : (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -1367,8 +1504,7 @@ export default function BuilderPage() {
 
 function emptyHint(tab: Tab): string {
   if (tab === "view")   return "load an arrangement.json to view";
-  if (tab === "assign") return "load a sky field to begin assigning";
-  return "load an arrangement.json to edit";
+  return "load a sky field to begin assigning";
 }
 
 // ---------------------------------------------------------------------------
