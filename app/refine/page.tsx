@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type { StarArrangement, StarOutput } from "@project-skymap/library";
 import type { Session } from "../assign/session";
 import { importSession } from "../assign/session";
 import { CANON, BOOKS } from "../assign/canon";
 import bibleRaw from "../../public/bible.json";
 import { BuilderSection, BuilderWorkspace } from "../components/BuilderWorkspace";
+import { buildArrangementFromSession, getDefaultVisibilityHorizonGuide, syncSkyStarToHemisphere } from "../skymap/shared";
 
 const STORAGE_KEY = "skymap-refine-session";
 const SKY_FIELD_RENDER_RADIUS = 1.25;
@@ -14,6 +16,7 @@ const SKY_FIELD_FADE_START = SKY_FIELD_RENDER_RADIUS * 0.88;
 const TRIANGULATION_MAX_EDGE_FACTOR = 2.35;
 const STAR_DRAG_HIT_RADIUS = 12;
 const EDGE_HIT_RADIUS = 10;
+const DEFAULT_VISIBILITY_HORIZON_GUIDE = getDefaultVisibilityHorizonGuide();
 
 function buildVerseCounts(): number[] {
   const arr: number[] = [];
@@ -86,15 +89,11 @@ function clampToSkyRadius(x: number, y: number): { x: number; y: number } {
 
 function syncStarPosition(star: StarOutput, x: number, y: number): StarOutput {
   const clamped = clampToSkyRadius(x, y);
-  const r2 = clamped.x * clamped.x + clamped.y * clamped.y;
-  return {
+  return syncSkyStarToHemisphere({
     ...star,
     x: clamped.x,
     y: clamped.y,
-    x3: clamped.x,
-    y3: Math.sqrt(Math.max(0, 1 - r2)),
-    z3: clamped.y,
-  };
+  });
 }
 
 function saveRefineSession(session: Session): void {
@@ -134,16 +133,7 @@ function exportRefineSession(session: Session): void {
 }
 
 function buildArrangement(session: Session): StarArrangement {
-  const arrangement: StarArrangement = {};
-  for (const [chapterKey, starId] of Object.entries(session.assignments)) {
-    const chapter = CANON[Number(chapterKey)];
-    const star = session.skyField.stars[starId];
-    if (!chapter || !star) continue;
-    arrangement[`C:${chapter.bookKey}:${chapter.chapterNumber}`] = {
-      position: [star.x3 * 2000, star.y3 * 2000, star.z3 * 2000],
-    };
-  }
-  return arrangement;
+  return buildArrangementFromSession(session);
 }
 
 function drawGeneratorStyleStar(
@@ -473,6 +463,7 @@ export default function RefinePage() {
   const [selectedStarId, setSelectedStarId] = useState<number | null>(null);
   const [selectedBookKey, setSelectedBookKey] = useState<string | null>(null);
   const [showBookTriangulation, setShowBookTriangulation] = useState(true);
+  const [showVisibilityGuides, setShowVisibilityGuides] = useState(true);
 
   useEffect(() => {
     const saved = loadRefineSession();
@@ -738,6 +729,28 @@ export default function RefinePage() {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
+      if (showVisibilityGuides) {
+        ctx.save();
+        ctx.setLineDash([2, 8]);
+        ctx.lineCap = "round";
+
+        if (DEFAULT_VISIBILITY_HORIZON_GUIDE.length > 1) {
+          ctx.beginPath();
+          DEFAULT_VISIBILITY_HORIZON_GUIDE.forEach((point, index) => {
+            const gx = scx + projectSkyCoordinate(point.x * cos + point.y * sin) * radius;
+            const gy = scy + projectSkyCoordinate(-point.x * sin + point.y * cos) * radius;
+            if (index === 0) ctx.moveTo(gx, gy);
+            else ctx.lineTo(gx, gy);
+          });
+          ctx.closePath();
+          ctx.strokeStyle = "rgba(255,255,255,0.82)";
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
       if (showBookTriangulation) {
         for (const book of books) {
           if (book.edges.length === 0) continue;
@@ -803,7 +816,7 @@ export default function RefinePage() {
 
     draw();
     return () => cancelAnimationFrame(animRef.current);
-  }, [books, selectedBookKey, selectedStarId, session, showBookTriangulation]);
+  }, [books, selectedBookKey, selectedStarId, session, showBookTriangulation, showVisibilityGuides]);
 
   return (
     <BuilderWorkspace
@@ -891,6 +904,18 @@ export default function RefinePage() {
 
               <BuilderSection label="Canvas Controls">
                 <label className="flex items-center justify-between text-xs text-white/52">
+                  <span>Show visibility guide</span>
+                  <input
+                    type="checkbox"
+                    checked={showVisibilityGuides}
+                    onChange={(event) => setShowVisibilityGuides(event.target.checked)}
+                    className="accent-amber-400"
+                  />
+                </label>
+                <p className="text-[10px] leading-relaxed text-white/22">
+                  Draws the default Preview horizon contour so book shapes can be refined inside the area expected to stay visible.
+                </p>
+                <label className="flex items-center justify-between text-xs text-white/52">
                   <span>Show book triangulation</span>
                   <input
                     type="checkbox"
@@ -940,6 +965,9 @@ export default function RefinePage() {
                 >
                   Export session JSON
                 </button>
+                <Link href="/preview" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
+                  Open Preview
+                </Link>
               </BuilderSection>
             </>
           )}

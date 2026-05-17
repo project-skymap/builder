@@ -156,6 +156,8 @@ export default function GeneratePage() {
       const pan    = panRef.current;
       const scx    = cx + pan.x;
       const scy    = cy + pan.y;
+      const cos      = Math.cos(spin);
+      const sin      = Math.sin(spin);
 
       ctx.fillStyle = "#05060a";
       ctx.fillRect(0, 0, W, H);
@@ -175,8 +177,6 @@ export default function GeneratePage() {
 
       const stars    = starsRef.current;
       const fadeArr  = edgeFadeRef.current;
-      const cos      = Math.cos(spin);
-      const sin      = Math.sin(spin);
 
       for (let i = 0; i < stars.length; i++) {
         const s    = stars[i] as StarOutput;

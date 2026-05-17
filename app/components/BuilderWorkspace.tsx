@@ -7,7 +7,7 @@ function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
 
-type BuilderRoute = "generate" | "assign" | "refine";
+type BuilderRoute = "generate" | "assign" | "refine" | "preview";
 
 export function BuilderWorkspace({
   route,
@@ -16,6 +16,7 @@ export function BuilderWorkspace({
   sidebar,
   children,
   sidebarWidthClass = "w-72",
+  onSidebarHoverChange,
 }: {
   route: BuilderRoute;
   title: string;
@@ -23,6 +24,7 @@ export function BuilderWorkspace({
   sidebar: ReactNode;
   children: ReactNode;
   sidebarWidthClass?: string;
+  onSidebarHoverChange?: (hovered: boolean) => void;
 }) {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#05060a] text-white">
@@ -31,6 +33,8 @@ export function BuilderWorkspace({
           sidebarWidthClass,
           "flex-shrink-0 border-r border-white/10 bg-[#07090f] overflow-y-auto",
         )}
+        onMouseEnter={() => onSidebarHoverChange?.(true)}
+        onMouseLeave={() => onSidebarHoverChange?.(false)}
       >
         <div className="flex flex-col gap-4 p-5">
           <div className="border-b border-white/8 pb-4">
@@ -43,10 +47,11 @@ export function BuilderWorkspace({
             )}
           </div>
 
-          <nav className="grid grid-cols-3 gap-2">
+          <nav className="grid grid-cols-4 gap-2">
             <BuilderRouteLink href="/generate" label="Generate" active={route === "generate"} />
             <BuilderRouteLink href="/assign" label="Assign" active={route === "assign"} />
             <BuilderRouteLink href="/refine" label="Refine" active={route === "refine"} />
+            <BuilderRouteLink href="/preview" label="Preview" active={route === "preview"} />
           </nav>
 
           {sidebar}

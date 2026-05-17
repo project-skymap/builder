@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { SceneNode, SceneModel, StarArrangement, StarMapHandle, HorizonThemeConfig, StarOutput } from "@project-skymap/library";
+import type { SceneNode, SceneModel, StarArrangement, StarMapHandle, StarOutput } from "@project-skymap/library";
 import { StarMap } from "@project-skymap/library";
-import horizonPresetData from "../../public/horizons/biblical-presets.v1.json";
 import type { Session } from "./session";
 import {
   loadSession, saveSession, createSession,
@@ -13,6 +12,12 @@ import { CANON, BOOKS } from "./canon";
 import type { Chapter } from "./canon";
 import bibleRaw from "../../public/bible.json";
 import { BuilderSection, BuilderSubTabs, BuilderWorkspace } from "../components/BuilderWorkspace";
+import {
+  buildAssignedScene as buildAssignedSceneShared,
+  buildModelFromArrangement as buildModelFromArrangementShared,
+  getDefaultHorizonTheme,
+  getDefaultVisibilityHorizonGuide,
+} from "../skymap/shared";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +50,7 @@ const ASSIGNED_LABEL_ZOOM_THRESHOLD = 1.65;
 const TRIANGULATION_MAX_EDGE_FACTOR = 2.35;
 const SKY_FIELD_RENDER_RADIUS = 1.25;
 const SKY_FIELD_FADE_START = SKY_FIELD_RENDER_RADIUS * 0.88;
+const DEFAULT_VISIBILITY_HORIZON_GUIDE = getDefaultVisibilityHorizonGuide();
 
 function assignedStarRadius(verseCount: number): number {
   const normalized = Math.max(0, Math.min(1, verseCount / MAX_VERSE_COUNT));
@@ -327,100 +333,6 @@ function chapterNodeToGlobalIndex(id: string): number | undefined {
   return gi >= book.startGlobalIndex && gi <= book.endGlobalIndex ? gi : undefined;
 }
 
-/** Reconstruct a SceneModel from an arrangement.json's node IDs (View + Edit). */
-function buildModelFromArrangement(arrangement: StarArrangement): SceneModel {
-  const nodes: SceneNode[] = [];
-  const addedT = new Set<string>();
-  const addedD = new Set<string>();
-  const addedB = new Set<string>();
-
-  const chapterKeys = Object.keys(arrangement)
-    .filter(k => /^C:/.test(k))
-    .sort((a, b) => (chapterNodeToGlobalIndex(a) ?? 9999) - (chapterNodeToGlobalIndex(b) ?? 9999));
-
-  for (const key of chapterKeys) {
-    const gi = chapterNodeToGlobalIndex(key);
-    if (gi === undefined) continue;
-    const chapter = CANON[gi];
-    if (!chapter) continue;
-
-    const tid = nid.testament(chapter.testament);
-    if (!addedT.has(tid)) {
-      addedT.add(tid);
-      nodes.push({ id: tid, label: chapter.testament, level: 0,
-        meta: { testament: chapter.testament } });
-    }
-
-    const did = nid.division(chapter.testament, chapter.divisionName);
-    if (!addedD.has(did)) {
-      addedD.add(did);
-      nodes.push({ id: did, label: chapter.divisionName, level: 1, parent: tid,
-        meta: { testament: chapter.testament, division: chapter.divisionName } });
-    }
-
-    const bid = nid.book(chapter.bookKey);
-    if (!addedB.has(bid)) {
-      addedB.add(bid);
-      nodes.push({ id: bid, label: chapter.bookName, level: 2, parent: did,
-        meta: { bookKey: chapter.bookKey, book: chapter.bookName } });
-    }
-
-    nodes.push({
-      id: key, label: `${chapter.bookName} ${chapter.chapterNumber}`,
-      level: 3, parent: bid, weight: VERSE_COUNTS[gi] ?? 1,
-      meta: { bookKey: chapter.bookKey, chapter: chapter.chapterNumber },
-    });
-  }
-
-  return { nodes };
-}
-
-/** Build SceneModel + StarArrangement from an assign session. */
-function buildAssignedScene(session: Session): { model: SceneModel; arrangement: StarArrangement } {
-  const nodes: SceneNode[]       = [];
-  const arrangement: StarArrangement = {};
-  const addedT = new Set<string>(), addedD = new Set<string>(), addedB = new Set<string>();
-
-  for (const [chStr, starId] of Object.entries(session.assignments)) {
-    const chIdx   = Number(chStr);
-    const chapter = CANON[chIdx];
-    if (!chapter) continue;
-    const star = session.skyField.stars[starId];
-    if (!star) continue;
-
-    const tid = nid.testament(chapter.testament);
-    if (!addedT.has(tid)) {
-      addedT.add(tid);
-      nodes.push({ id: tid, label: chapter.testament, level: 0,
-        meta: { testament: chapter.testament } });
-    }
-
-    const did = nid.division(chapter.testament, chapter.divisionName);
-    if (!addedD.has(did)) {
-      addedD.add(did);
-      nodes.push({ id: did, label: chapter.divisionName, level: 1, parent: tid });
-    }
-
-    const bid = nid.book(chapter.bookKey);
-    if (!addedB.has(bid)) {
-      addedB.add(bid);
-      nodes.push({ id: bid, label: chapter.bookName, level: 2, parent: did,
-        meta: { bookKey: chapter.bookKey } });
-    }
-
-    const cid = nid.chapter(chapter.bookKey, chapter.chapterNumber);
-    nodes.push({
-      id: cid, label: `${chapter.bookName} ${chapter.chapterNumber}`,
-      level: 3, parent: bid, weight: VERSE_COUNTS[chIdx] ?? 1,
-      meta: { bookKey: chapter.bookKey, chapter: chapter.chapterNumber },
-    });
-
-    arrangement[cid] = { position: [star.x3 * 2000, star.y3 * 2000, star.z3 * 2000] };
-  }
-
-  return { model: { nodes }, arrangement };
-}
-
 // ---------------------------------------------------------------------------
 // Chapter search
 // ---------------------------------------------------------------------------
@@ -502,6 +414,7 @@ export default function BuilderPage() {
   const [sessionStatus, setSessionStatus] = useState<string>("No session loaded yet.");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [showBookTriangulation, setShowBookTriangulation] = useState(true);
+  const [showVisibilityGuides, setShowVisibilityGuides] = useState(true);
 
   // 3D selection (Assign mode only)
   const [selectedNode,          setSelectedNode]          = useState<SceneNode | null>(null);
@@ -541,7 +454,7 @@ export default function BuilderPage() {
 
   const viewModel = useMemo(() => {
     if (!arrangement) return null;
-    return buildModelFromArrangement(arrangement);
+    return buildModelFromArrangementShared(arrangement);
   }, [arrangement]);
 
   const starToChapter = useMemo(() => {
@@ -561,11 +474,7 @@ export default function BuilderPage() {
 
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
 
-  const horizonTheme = useMemo<HorizonThemeConfig | undefined>(() => {
-    const themes    = (horizonPresetData as any).themes as HorizonThemeConfig[];
-    const defaultId = (horizonPresetData as any).defaultThemeId as string;
-    return themes?.find(t => t.id === defaultId) ?? themes?.[0];
-  }, []);
+  const horizonTheme = useMemo(() => getDefaultHorizonTheme(), []);
 
   useEffect(() => {
     fetch("/constellations.json")
@@ -1001,6 +910,28 @@ export default function BuilderPage() {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
+      if (showVisibilityGuides) {
+        ctx.save();
+        ctx.setLineDash([2, 8]);
+        ctx.lineCap = "round";
+
+        if (DEFAULT_VISIBILITY_HORIZON_GUIDE.length > 1) {
+          ctx.beginPath();
+          DEFAULT_VISIBILITY_HORIZON_GUIDE.forEach((point, index) => {
+            const gx = scx + projectSkyCoordinate(point.x * cos + point.y * sin) * radius;
+            const gy = scy + projectSkyCoordinate(-point.x * sin + point.y * cos) * radius;
+            if (index === 0) ctx.moveTo(gx, gy);
+            else ctx.lineTo(gx, gy);
+          });
+          ctx.closePath();
+          ctx.strokeStyle = "rgba(255,255,255,0.82)";
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
       if (showBookTriangulation) {
         for (const book of triangulationBooks) {
           if (book.edges.length === 0) continue;
@@ -1107,7 +1038,7 @@ export default function BuilderPage() {
 
     draw();
     return () => cancelAnimationFrame(animRef.current);
-  }, [activeTab, armedChapterIndex, selectedChapterIndex, selectedMarkerStarId, session, showBookTriangulation, starToChapter, triangulationBooks]);
+  }, [activeTab, armedChapterIndex, selectedChapterIndex, selectedMarkerStarId, session, showBookTriangulation, showVisibilityGuides, starToChapter, triangulationBooks]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1260,6 +1191,18 @@ export default function BuilderPage() {
 
                 <BuilderSection label="Sky Controls">
                   <label className="flex items-center justify-between text-xs text-white/52">
+                  <span>Show visibility guide</span>
+                    <input
+                      type="checkbox"
+                      checked={showVisibilityGuides}
+                      onChange={e => setShowVisibilityGuides(e.target.checked)}
+                      className="accent-amber-400"
+                    />
+                  </label>
+                  <p className="text-[10px] leading-relaxed text-white/22">
+                    Draws the default Preview horizon contour so assigned stars can be kept within the area expected to stay visible.
+                  </p>
+                  <label className="flex items-center justify-between text-xs text-white/52">
                     <span>Show book triangulation</span>
                     <input
                       type="checkbox"
@@ -1391,7 +1334,7 @@ export default function BuilderPage() {
                   <button
                     onClick={() => {
                       if (session) {
-                        const { arrangement: arr } = buildAssignedScene(session);
+                        const { arrangement: arr } = buildAssignedSceneShared(session);
                         downloadJson(arr, "arrangement.json");
                       }
                     }}
