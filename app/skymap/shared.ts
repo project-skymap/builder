@@ -21,6 +21,7 @@ export function buildVerseCounts(): number[] {
 export const VERSE_COUNTS = buildVerseCounts();
 export const ARRANGEMENT_RADIUS = 2000;
 export const SKY_TO_DOME_MIRROR_X = true;
+export const DEFAULT_GENERATED_SKY_PADDING_DEG = 0.5;
 
 export const nid = {
   testament: (t: string)               => `T:${t}`,
@@ -220,6 +221,18 @@ function getMaxHorizonAltitudeDeg(theme: HorizonThemeConfig | undefined): number
   const profile = normalizeHorizonProfile(theme);
   if (profile.points.length < 2) return 0;
   return profile.points.reduce((maxAlt, point) => Math.max(maxAlt, point.altDeg), profile.points[0]!.altDeg);
+}
+
+export function getVisibleSkyRadius(
+  theme: HorizonThemeConfig | undefined,
+  paddingDeg = DEFAULT_GENERATED_SKY_PADDING_DEG,
+): number {
+  const visibleEdgeAltDeg = clamp(getMaxHorizonAltitudeDeg(theme) + paddingDeg, 0, 89);
+  return Math.cos((visibleEdgeAltDeg * Math.PI) / 180);
+}
+
+export function getDefaultGeneratedSkyRadius(paddingDeg = DEFAULT_GENERATED_SKY_PADDING_DEG): number {
+  return getVisibleSkyRadius(getDefaultHorizonTheme(), paddingDeg);
 }
 
 function getChapterDirections(arrangement: StarArrangement): Vec3[] {
@@ -449,7 +462,7 @@ export function buildModelFromArrangement(arrangement: StarArrangement): SceneMo
 
     nodes.push({
       id: key,
-      label: `${chapter.bookName} ${chapter.chapterNumber}`,
+      label: `${chapter.bookKey} ${chapter.chapterNumber}`,
       level: 3,
       parent: bid,
       weight: VERSE_COUNTS[gi] ?? 1,
@@ -494,7 +507,7 @@ export function buildAssignedScene(session: Session): { model: SceneModel; arran
     const cid = nid.chapter(chapter.bookKey, chapter.chapterNumber);
     nodes.push({
       id: cid,
-      label: `${chapter.bookName} ${chapter.chapterNumber}`,
+      label: `${chapter.bookKey} ${chapter.chapterNumber}`,
       level: 3,
       parent: bid,
       weight: VERSE_COUNTS[chIdx] ?? 1,
@@ -742,6 +755,7 @@ function buildFallbackHorizonGuide(baseAltDeg = 3, sampleCount = 180): Visibilit
 export function buildVisibilityHorizonGuide(
   theme: HorizonThemeConfig | undefined,
   samplesPerSegment = 12,
+  paddingDeg = 0,
 ): VisibilityGuidePoint[] {
   const profile = theme?.profile;
   const rawPoints = profile?.points ?? [];
@@ -760,7 +774,7 @@ export function buildVisibilityHorizonGuide(
     for (let step = 0; step < samplesPerSegment; step++) {
       const t = step / samplesPerSegment;
       const azDeg = azStart + (azEnd - azStart) * t - rotateDeg;
-      const altDeg = start.altDeg + (end.altDeg - start.altDeg) * t;
+      const altDeg = clamp(start.altDeg + (end.altDeg - start.altDeg) * t + paddingDeg, 0, 89);
       const azRad = (normalizeAzimuthDeg(azDeg) * Math.PI) / 180;
       const r = Math.cos((altDeg * Math.PI) / 180);
       guide.push({

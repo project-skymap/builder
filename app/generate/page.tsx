@@ -7,6 +7,7 @@ import type { SkyGenParams, StarOutput, SkyField, SkyMetrics } from "@project-sk
 import type { WorkerRequest, WorkerResponse } from "./worker";
 import { BuilderSection, BuilderWorkspace } from "../components/BuilderWorkspace";
 import { stageGeneratedSkyField } from "../assign/session";
+import { getDefaultGeneratedSkyRadius } from "../skymap/shared";
 
 // ---------------------------------------------------------------------------
 // Slider
@@ -88,6 +89,17 @@ function stageLabel(stage: string): string {
   return stage;
 }
 
+const DEFAULT_VISIBILITY_PADDING_DEG = 0.5;
+
+function buildGenerateParams(paddingDeg: number): SkyGenParams {
+  return {
+    ...DEFAULT_SKY_PARAMS,
+    maxProjectionRadius: getDefaultGeneratedSkyRadius(paddingDeg),
+  };
+}
+
+const DEFAULT_GENERATE_PARAMS: SkyGenParams = buildGenerateParams(DEFAULT_VISIBILITY_PADDING_DEG);
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -113,8 +125,9 @@ export default function GeneratePage() {
   const lastMouse  = useRef({ x: 0, y: 0 });
 
   // UI state
-  const [params, setParams] = useState<SkyGenParams>(DEFAULT_SKY_PARAMS);
-  const paramsRef           = useRef<SkyGenParams>(DEFAULT_SKY_PARAMS);
+  const [visibilityPaddingDeg, setVisibilityPaddingDeg] = useState(DEFAULT_VISIBILITY_PADDING_DEG);
+  const [params, setParams] = useState<SkyGenParams>(DEFAULT_GENERATE_PARAMS);
+  const paramsRef           = useRef<SkyGenParams>(DEFAULT_GENERATE_PARAMS);
 
   const [generating, setGenerating] = useState(false);
   const [progressStage, setProgressStage] = useState("");
@@ -174,6 +187,17 @@ export default function GeneratePage() {
       ctx.strokeStyle = "rgba(80,100,160,0.35)";
       ctx.lineWidth   = 1.5;
       ctx.stroke();
+
+      const visibleRadius = Math.max(0.01, paramsRef.current.maxProjectionRadius);
+      if (visibleRadius < 0.999) {
+        ctx.beginPath();
+        ctx.arc(scx, scy, radius * visibleRadius, 0, Math.PI * 2);
+        ctx.setLineDash([8, 8]);
+        ctx.strokeStyle = "rgba(125,211,252,0.72)";
+        ctx.lineWidth = 1.25;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
       const stars    = starsRef.current;
       const fadeArr  = edgeFadeRef.current;
@@ -269,13 +293,17 @@ export default function GeneratePage() {
       } else if (msg.type === "done") {
         starsRef.current = msg.field.stars;
 
-        // Precompute edge fade per star (stars at r>1.0 are over-horizon, invisible)
+        // Precompute edge fade inside the configured visible generation band.
         const fadeArr = new Float32Array(msg.field.stars.length);
+        const fieldVisibleRadius = Math.max(0.01, msg.field.params.maxProjectionRadius);
+        const fadeStart = fieldVisibleRadius * 0.88;
         for (let i = 0; i < msg.field.stars.length; i++) {
           const s = msg.field.stars[i] as StarOutput;
           const projR = Math.sqrt(s.x * s.x + s.y * s.y);
-          if (projR >= 1.0) { fadeArr[i] = 0; continue; }
-          fadeArr[i] = projR > 0.88 ? Math.max(0, (1 - projR) / 0.12) : 1;
+          if (projR >= fieldVisibleRadius) { fadeArr[i] = 0; continue; }
+          fadeArr[i] = projR > fadeStart
+            ? Math.max(0, (fieldVisibleRadius - projR) / Math.max(0.001, fieldVisibleRadius - fadeStart))
+            : 1;
         }
         edgeFadeRef.current = fadeArr;
 
@@ -291,7 +319,7 @@ export default function GeneratePage() {
 
   // Auto-run on mount
   useEffect(() => {
-    runGeneration(DEFAULT_SKY_PARAMS);
+    runGeneration(DEFAULT_GENERATE_PARAMS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -373,6 +401,15 @@ export default function GeneratePage() {
     });
   }, []);
 
+  const updateVisibilityPadding = useCallback((paddingDeg: number) => {
+    setVisibilityPaddingDeg(paddingDeg);
+    setParams(prev => {
+      const next = { ...prev, maxProjectionRadius: getDefaultGeneratedSkyRadius(paddingDeg) };
+      paramsRef.current = next;
+      return next;
+    });
+  }, []);
+
   // -------------------------------------------------------------------------
   // Controls
   // -------------------------------------------------------------------------
@@ -435,6 +472,9 @@ export default function GeneratePage() {
           <p className="text-xs text-indigo-300/70">
             Field updates automatically while you adjust controls.
           </p>
+          <p className="text-xs text-sky-300/60">
+            Generated stars stay inside the default preview visibility band.
+          </p>
 
           <BuilderSection label="Seed">
             <div className="flex flex-col gap-1">
@@ -448,6 +488,12 @@ export default function GeneratePage() {
           </BuilderSection>
 
           <BuilderSection label="Field">
+            <Slider label="Visibility padding" value={visibilityPaddingDeg}
+              min={0} max={2.5} step={0.1}
+              onChange={updateVisibilityPadding}
+              fmt={v => `${v.toFixed(1)}°`}
+              note="horizon guide" />
+
             <Slider label="Warp" value={params.warpStrength}
               min={0} max={0.8} step={0.01}
               onChange={v => updateParam("warpStrength", v)} />

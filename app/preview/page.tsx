@@ -85,7 +85,7 @@ export default function PreviewPage() {
   const [status, setStatus] = useState("No preview source loaded yet.");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [currentFov, setCurrentFov] = useState(35);
-  const [showBookLabels, setShowBookLabels] = useState(true);
+  const [showBookLabels, setShowBookLabels] = useState(false);
   const [showChapterLabels, setShowChapterLabels] = useState(true);
   const [showConstellationArt, setShowConstellationArt] = useState(false);
   const [showBackdropStars, setShowBackdropStars] = useState(false);
@@ -94,7 +94,7 @@ export default function PreviewPage() {
   const [showSunrise, setShowSunrise] = useState(false);
   const [showMilkyWay, setShowMilkyWay] = useState(false);
   const [triangulationMode, setTriangulationMode] = useState<"off" | "focused" | "full">("focused");
-  const [useVisibleHemisphere, setUseVisibleHemisphere] = useState(true);
+  const [useVisibleHemisphere, setUseVisibleHemisphere] = useState(false);
   const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
   const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(22);
   const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(40);
