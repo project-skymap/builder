@@ -18,8 +18,16 @@ import {
   optimizeArrangementForVisibility,
   remapArrangementToVisibleHemisphere,
 } from "../skymap/shared";
+import {
+  buildCustomHorizonTheme,
+  PREVIEW_CUSTOM_HORIZON_DEFAULTS,
+  type CustomHorizonFill,
+  type HorizonColorMode,
+  type PreviewCustomHorizonDefaults,
+} from "./config";
 
 const PREVIEW_STORAGE_KEY = "skymap-preview-arrangement";
+const PREVIEW_HORIZON_SETTINGS_KEY = "skymap-preview-horizon-settings";
 const REFINE_STORAGE_KEY = "skymap-refine-session";
 
 type PreviewPayload = {
@@ -60,6 +68,35 @@ function savePreviewPayload(payload: PreviewPayload): void {
   }
 }
 
+function loadPreviewHorizonSettings(): PreviewCustomHorizonDefaults | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const data = JSON.parse(localStorage.getItem(PREVIEW_HORIZON_SETTINGS_KEY) ?? "null") as Partial<PreviewCustomHorizonDefaults> | null;
+    if (!data) return null;
+    const next = { ...PREVIEW_CUSTOM_HORIZON_DEFAULTS };
+    if (data.mode === "light" || data.mode === "dark" || data.mode === "custom") next.mode = data.mode;
+    if (data.fill === "solid" || data.fill === "radial") next.fill = data.fill;
+    if (typeof data.groundColor === "string") next.groundColor = data.groundColor;
+    if (typeof data.horizonLineColor === "string") next.horizonLineColor = data.horizonLineColor;
+    if (typeof data.gradientInnerColor === "string") next.gradientInnerColor = data.gradientInnerColor;
+    if (typeof data.gradientOuterColor === "string") next.gradientOuterColor = data.gradientOuterColor;
+    if (typeof data.gradientRadius === "number") next.gradientRadius = data.gradientRadius;
+    if (typeof data.gradientIntensity === "number") next.gradientIntensity = data.gradientIntensity;
+    return next;
+  } catch {
+    return null;
+  }
+}
+
+function savePreviewHorizonSettings(settings: PreviewCustomHorizonDefaults): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(PREVIEW_HORIZON_SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
 function loadRefineAutosave(): Session | null {
   if (typeof window === "undefined") return null;
   try {
@@ -83,12 +120,13 @@ function buildPreviewPayloadFromSession(session: Session, filename?: string): Pr
 
 export default function PreviewPage() {
   const mapRef = useRef<StarMapHandle>(null);
+  const [horizonSettingsLoaded, setHorizonSettingsLoaded] = useState(false);
   const [payload, setPayload] = useState<PreviewPayload | null>(null);
   const [status, setStatus] = useState("No preview source loaded yet.");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [currentFov, setCurrentFov] = useState(35);
   const [currentCamera, setCurrentCamera] = useState<{ lon: number; lat: number; fov: number } | null>(null);
-  const [showDivisionLabels, setShowDivisionLabels] = useState(false);
+  const [showDivisionLabels, setShowDivisionLabels] = useState(true);
   const [showDivisionTint, setShowDivisionTint] = useState(true);
   const [showBookLabels, setShowBookLabels] = useState(false);
   const [showChapterLabels, setShowChapterLabels] = useState(false);
@@ -106,13 +144,30 @@ export default function PreviewPage() {
   const [starSizeExponent, setStarSizeExponent] = useState(4.0);
   const [starSizeScale, setStarSizeScale] = useState(1.25);
   const [starSizeWeightPercentile, setStarSizeWeightPercentile] = useState(1.0);
+  const [divisionLabelPushFraction, setDivisionLabelPushFraction] = useState(0.45);
+  const [divisionLabelHorizonPaddingDeg, setDivisionLabelHorizonPaddingDeg] = useState(25);
   const [selectedHorizonThemeId, setSelectedHorizonThemeId] = useState(DEFAULT_HORIZON_THEME_ID || HORIZON_THEMES[0]?.id || "");
-  const [horizonColorMode, setHorizonColorMode] = useState<"light" | "dark">("dark");
+  const [customHorizon, setCustomHorizon] = useState<PreviewCustomHorizonDefaults>(PREVIEW_CUSTOM_HORIZON_DEFAULTS);
+  const [horizonColorMode, setHorizonColorMode] = useState<HorizonColorMode>(PREVIEW_CUSTOM_HORIZON_DEFAULTS.mode);
   const [constellationConfig, setConstellationConfig] = useState<any>(null);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [filterTestament, setFilterTestament] = useState("");
   const [filterDivision, setFilterDivision] = useState("");
   const [filterBook, setFilterBook] = useState("");
+
+  useEffect(() => {
+    const saved = loadPreviewHorizonSettings();
+    if (saved) {
+      setCustomHorizon(saved);
+      setHorizonColorMode(saved.mode);
+    }
+    setHorizonSettingsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!horizonSettingsLoaded) return;
+    savePreviewHorizonSettings({ ...customHorizon, mode: horizonColorMode });
+  }, [customHorizon, horizonColorMode, horizonSettingsLoaded]);
 
   useEffect(() => {
     const autosaved = loadPreviewPayload();
@@ -201,6 +256,7 @@ export default function PreviewPage() {
   );
   const previewHorizonTheme = useMemo<HorizonThemeConfig | undefined>(() => {
     if (!selectedHorizonTheme || horizonColorMode === "light") return selectedHorizonTheme;
+    if (horizonColorMode === "custom") return buildCustomHorizonTheme(selectedHorizonTheme, customHorizon);
     return {
       ...selectedHorizonTheme,
       id: `${selectedHorizonTheme.id}-dark`,
@@ -214,7 +270,7 @@ export default function PreviewPage() {
         minimalBrightness: 0,
       },
     };
-  }, [horizonColorMode, selectedHorizonTheme]);
+  }, [customHorizon, horizonColorMode, selectedHorizonTheme]);
   const optimizedArrangement = useMemo(
     () => (
       payload
@@ -258,6 +314,8 @@ export default function PreviewPage() {
       showChapterLabels,
       showDivisionLabels,
       showDivisionTint,
+      divisionLabelPushFraction,
+      divisionLabelHorizonPaddingDeg,
       showGroupLabels: false,
       divisionColors,
       divisionRegions: adjustedDivisionRegions,
@@ -293,6 +351,8 @@ export default function PreviewPage() {
     constellationBaseOpacity,
     displayArrangement,
     divisionColors,
+    divisionLabelPushFraction,
+    divisionLabelHorizonPaddingDeg,
     adjustedDivisionRegions,
     model,
     previewConstellationConfig,
@@ -320,6 +380,15 @@ export default function PreviewPage() {
   const lastSavedLabel = lastSavedAt !== null
     ? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(lastSavedAt)
     : null;
+
+  const updateCustomHorizon = useCallback((patch: Partial<PreviewCustomHorizonDefaults>) => {
+    setCustomHorizon((current) => ({ ...current, ...patch }));
+  }, []);
+
+  const handleResetCustomHorizon = useCallback(() => {
+    setCustomHorizon(PREVIEW_CUSTOM_HORIZON_DEFAULTS);
+    setHorizonColorMode(PREVIEW_CUSTOM_HORIZON_DEFAULTS.mode);
+  }, []);
 
   const handleImportArrangement = useCallback(async (file: File) => {
     try {
@@ -486,12 +555,73 @@ export default function PreviewPage() {
                 <SelectRow
                   label="Horizon colour"
                   value={horizonColorMode}
-                  onChange={(value) => setHorizonColorMode(value as typeof horizonColorMode)}
+                  onChange={(value) => setHorizonColorMode(value as HorizonColorMode)}
                   options={[
                     { value: "light", label: "Light" },
                     { value: "dark", label: "Dark" },
+                    { value: "custom", label: "Custom" },
                   ]}
                 />
+                {horizonColorMode === "custom" && (
+                  <div className="flex flex-col gap-3 rounded-md border border-white/8 bg-white/[0.03] p-2.5">
+                    <SelectRow
+                      label="Custom fill"
+                      value={customHorizon.fill}
+                      onChange={(value) => updateCustomHorizon({ fill: value as CustomHorizonFill })}
+                      options={[
+                        { value: "solid", label: "Solid" },
+                        { value: "radial", label: "Radial" },
+                      ]}
+                    />
+                    <ColorRow
+                      label="Ground"
+                      value={customHorizon.groundColor}
+                      onChange={(value) => updateCustomHorizon({ groundColor: value })}
+                    />
+                    <ColorRow
+                      label="Rim / fog"
+                      value={customHorizon.horizonLineColor}
+                      onChange={(value) => updateCustomHorizon({ horizonLineColor: value })}
+                    />
+                    {customHorizon.fill === "radial" && (
+                      <>
+                        <ColorRow
+                          label="Gradient inner"
+                          value={customHorizon.gradientInnerColor}
+                          onChange={(value) => updateCustomHorizon({ gradientInnerColor: value })}
+                        />
+                        <ColorRow
+                          label="Gradient outer"
+                          value={customHorizon.gradientOuterColor}
+                          onChange={(value) => updateCustomHorizon({ gradientOuterColor: value })}
+                        />
+                        <SliderRow
+                          label="Gradient radius"
+                          value={customHorizon.gradientRadius}
+                          min={0.15}
+                          max={2.5}
+                          step={0.05}
+                          onChange={(value) => updateCustomHorizon({ gradientRadius: value })}
+                        />
+                        <SliderRow
+                          label="Gradient strength"
+                          value={customHorizon.gradientIntensity}
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          onChange={(value) => updateCustomHorizon({ gradientIntensity: value })}
+                        />
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleResetCustomHorizon}
+                      className="text-left text-[10px] uppercase tracking-widest text-white/30 transition-colors hover:text-white/65"
+                    >
+                      Reset to config defaults
+                    </button>
+                  </div>
+                )}
                 <SliderRow
                   label="Chapter label FOV"
                   value={chapterLabelMaxFov}
@@ -499,6 +629,22 @@ export default function PreviewPage() {
                   max={48}
                   step={1}
                   onChange={setChapterLabelMaxFov}
+                />
+                <SliderRow
+                  label="Division label spread"
+                  value={divisionLabelPushFraction}
+                  min={0}
+                  max={1.2}
+                  step={0.05}
+                  onChange={setDivisionLabelPushFraction}
+                />
+                <SliderRow
+                  label="Division label horizon padding"
+                  value={divisionLabelHorizonPaddingDeg}
+                  min={0}
+                  max={45}
+                  step={1}
+                  onChange={setDivisionLabelHorizonPaddingDeg}
                 />
                 <SliderRow
                   label="Artwork opacity"
@@ -644,6 +790,33 @@ function SliderRow({ label, value, min, max, step, onChange }: {
         className="w-full accent-indigo-400"
       />
     </div>
+  );
+}
+
+function ColorRow({ label, value, onChange }: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const pickerValue = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000";
+  return (
+    <label className="flex items-center justify-between gap-3 text-xs text-white/52">
+      <span>{label}</span>
+      <span className="flex items-center gap-2">
+        <input
+          type="color"
+          value={pickerValue}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-7 w-8 rounded border border-white/10 bg-transparent p-0"
+        />
+        <input
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="w-20 rounded border border-white/10 bg-white/[0.03] px-2 py-1 font-mono text-[10px] text-white/78"
+        />
+      </span>
+    </label>
   );
 }
 
