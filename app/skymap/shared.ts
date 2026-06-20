@@ -161,7 +161,7 @@ function quatFromUnitVectors(from: Vec3, to: Vec3): Quaternion {
   });
 }
 
-function rotateVec(vec: Vec3, quat: Quaternion): Vec3 {
+export function rotateVec(vec: Vec3, quat: Quaternion): Vec3 {
   const qVec = { x: quat.x, y: quat.y, z: quat.z };
   const uv = crossVec(qVec, vec);
   const uuv = crossVec(qVec, uv);
@@ -280,7 +280,7 @@ function applyQuaternionToArrangement(arrangement: StarArrangement, rotation: Qu
   return next;
 }
 
-function findBestVisibilityRotation(
+export function findBestVisibilityRotation(
   arrangement: StarArrangement,
   theme: HorizonThemeConfig | undefined,
   clearanceDeg: number,
@@ -471,6 +471,68 @@ export function buildModelFromArrangement(arrangement: StarArrangement): SceneMo
   }
 
   return { nodes };
+}
+
+// Padding applied beyond the outermost chapter so a division's region reads as an
+// area rather than a tight outline. Mirrors library/scripts/analyze-divisions.ts.
+const DIVISION_ANGULAR_PADDING_FACTOR = 1.35;
+const DIVISION_ANGULAR_PADDING_MIN_RAD = 0.06;
+const DIVISION_ANGULAR_RADIUS_MIN_RAD = 0.12;
+const DIVISION_ANGULAR_RADIUS_MAX_RAD = 0.9;
+
+export type DivisionRegions = Record<string, { direction: [number, number, number]; angularRadiusRad: number }>;
+
+// Computes each division's true star centroid (and angular spread) directly from the
+// arrangement actually being displayed, so the tint disc always matches the stars on
+// screen — including arrangements loaded from Refine sessions/autosaves/uploads, not
+// just the one analyze-divisions.ts happened to be run against.
+export function computeDivisionRegions(arrangement: StarArrangement): DivisionRegions {
+  const positionsByDivision = new Map<string, [number, number, number][]>();
+
+  for (const [id, entry] of Object.entries(arrangement)) {
+    if (!entry.position) continue;
+    const gi = chapterNodeToGlobalIndex(id);
+    if (gi === undefined) continue;
+    const chapter = CANON[gi];
+    if (!chapter) continue;
+
+    const list = positionsByDivision.get(chapter.divisionName) ?? [];
+    list.push(entry.position);
+    positionsByDivision.set(chapter.divisionName, list);
+  }
+
+  const regions: DivisionRegions = {};
+  for (const [divisionName, positions] of positionsByDivision.entries()) {
+    const mean: [number, number, number] = [0, 0, 0];
+    for (const p of positions) {
+      mean[0] += p[0];
+      mean[1] += p[1];
+      mean[2] += p[2];
+    }
+    mean[0] /= positions.length;
+    mean[1] /= positions.length;
+    mean[2] /= positions.length;
+
+    const direction = normalizeVec({ x: mean[0], y: mean[1], z: mean[2] });
+    const directionVec: [number, number, number] = [direction.x, direction.y, direction.z];
+
+    let maxAngle = 0;
+    for (const p of positions) {
+      const pDir = normalizeVec({ x: p[0], y: p[1], z: p[2] });
+      const dot = Math.max(-1, Math.min(1, direction.x * pDir.x + direction.y * pDir.y + direction.z * pDir.z));
+      const angle = Math.acos(dot);
+      if (angle > maxAngle) maxAngle = angle;
+    }
+
+    const angularRadiusRad = Math.min(
+      DIVISION_ANGULAR_RADIUS_MAX_RAD,
+      Math.max(DIVISION_ANGULAR_RADIUS_MIN_RAD, maxAngle * DIVISION_ANGULAR_PADDING_FACTOR + DIVISION_ANGULAR_PADDING_MIN_RAD),
+    );
+
+    regions[divisionName] = { direction: directionVec, angularRadiusRad };
+  }
+
+  return regions;
 }
 
 export function buildAssignedScene(session: Session): { model: SceneModel; arrangement: StarArrangement } {

@@ -1,0 +1,92 @@
+{
+  "The Law": {
+    "direction": [
+      -0.008461204584194266,
+      0.5611839929712069,
+      0.8276478321423169
+    ],
+    "angularRadiusRad": 0.9,
+    "starCount": 187
+  },
+  "History": {
+    "direction": [
+      0.579002688417803,
+      0.7317223383200703,
+      0.35963635301282476
+    ],
+    "angularRadiusRad": 0.9,
+    "starCount": 249
+  },
+  "Wisdom": {
+    "direction": [
+      0.503407893783518,
+      0.7806586005517039,
+      -0.37034125055291556
+    ],
+    "angularRadiusRad": 0.9,
+    "starCount": 243
+  },
+  "Major Prophets": {
+    "direction": [
+      -0.026770263423266553,
+      0.591041351507514,
+      -0.8061969199918964
+    ],
+    "angularRadiusRad": 0.9,
+    "starCount": 183
+  },
+  "Minor Prophets": {
+    "direction": [
+      -0.6965540978881903,
+      0.43678201792834725,
+      -0.5692397188615798
+    ],
+    "angularRadiusRad": 0.7520366759755821,
+    "starCount": 67
+  },
+  "Gospels": {
+    "direction": [
+      -0.7868190962876064,
+      0.5967261470241129,
+      -0.15758684962556763
+    ],
+    "angularRadiusRad": 0.9,
+    "starCount": 89
+  },
+  "Early Church": {
+    "direction": [
+      -0.2981500324344665,
+      0.9062198357622488,
+      -0.2997868700099609
+    ],
+    "angularRadiusRad": 0.34201750289234134,
+    "starCount": 28
+  },
+  "Paul's Letters": {
+    "direction": [
+      -0.6003732095854114,
+      0.7339582751373933,
+      0.3175803198711376
+    ],
+    "angularRadiusRad": 0.9,
+    "starCount": 100
+  },
+  "General Letters": {
+    "direction": [
+      -0.7050183826850026,
+      0.5651607328450825,
+      0.42841851748755266
+    ],
+    "angularRadiusRad": 0.35384444307002966,
+    "starCount": 21
+  },
+  "Prophecy": {
+    "direction": [
+      -0.7681418328213051,
+      0.20728996473751599,
+      0.605796166370377
+    ],
+    "angularRadiusRad": 0.5548788233570674,
+    "starCount": 22
+  }
+}

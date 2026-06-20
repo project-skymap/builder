@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { ReactNode } from "react";
 
 function cx(...parts: Array<string | false | null | undefined>): string {
@@ -17,6 +18,8 @@ export function BuilderWorkspace({
   children,
   sidebarWidthClass = "w-72",
   onSidebarHoverChange,
+  collapsibleSidebar = false,
+  onRefreshViewport,
 }: {
   route: BuilderRoute;
   title: string;
@@ -25,12 +28,17 @@ export function BuilderWorkspace({
   children: ReactNode;
   sidebarWidthClass?: string;
   onSidebarHoverChange?: (hovered: boolean) => void;
+  collapsibleSidebar?: boolean;
+  onRefreshViewport?: () => void;
 }) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#05060a] text-white">
       <aside
         className={cx(
           sidebarWidthClass,
+          collapsibleSidebar && sidebarCollapsed && "hidden",
           "flex-shrink-0 border-r border-white/10 bg-[#07090f] overflow-y-auto",
         )}
         onMouseEnter={() => onSidebarHoverChange?.(true)}
@@ -58,7 +66,41 @@ export function BuilderWorkspace({
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1">{children}</main>
+      <main className="relative min-w-0 flex-1">
+        {(collapsibleSidebar || onRefreshViewport) && (
+          <div className="absolute left-3 top-3 z-50 flex gap-2">
+            {collapsibleSidebar && (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextCollapsed = !sidebarCollapsed;
+                  setSidebarCollapsed(nextCollapsed);
+                  if (nextCollapsed) onSidebarHoverChange?.(false);
+                }}
+                aria-label={sidebarCollapsed ? "Show menu" : "Hide menu"}
+                aria-expanded={!sidebarCollapsed}
+                className="flex h-9 w-9 flex-col items-center justify-center gap-1 rounded-md border border-white/12 bg-black/55 shadow-lg shadow-black/30 backdrop-blur transition-colors hover:border-white/25 hover:bg-black/75"
+              >
+                <span className="h-px w-4 bg-white/75" />
+                <span className="h-px w-4 bg-white/75" />
+                <span className="h-px w-4 bg-white/75" />
+              </button>
+            )}
+            {onRefreshViewport && (
+              <button
+                type="button"
+                onClick={onRefreshViewport}
+                aria-label="Refresh preview size"
+                title="Refresh preview size"
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-white/12 bg-black/55 text-[11px] font-semibold uppercase text-white/75 shadow-lg shadow-black/30 backdrop-blur transition-colors hover:border-white/25 hover:bg-black/75"
+              >
+                R
+              </button>
+            )}
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   );
 }
