@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { HierarchyFilter, HorizonThemeConfig, StarArrangement, StarMapConfig, StarMapHandle } from "@project-skymap/library";
+import type { ConstellationConfig, HierarchyFilter, HorizonThemeConfig, StarArrangement, StarMapConfig, StarMapHandle } from "@project-skymap/library";
 import { StarMap } from "@project-skymap/library";
 import type { Session } from "../assign/session";
 import { importSession } from "../assign/session";
@@ -11,6 +11,7 @@ import {
   buildTriangulatedConstellations,
   buildArrangementFromSession,
   buildModelFromArrangement,
+  computeBookRegions,
   computeDivisionRegions,
   DEFAULT_HORIZON_THEME_ID,
   divisionTriangulationColor,
@@ -29,6 +30,7 @@ import {
 const PREVIEW_STORAGE_KEY = "skymap-preview-arrangement";
 const PREVIEW_HORIZON_SETTINGS_KEY = "skymap-preview-horizon-settings";
 const REFINE_STORAGE_KEY = "skymap-refine-session";
+const CONSTELLATE_STORAGE_KEY = "skymap-constellate-constellations";
 
 type PreviewPayload = {
   arrangement: StarArrangement;
@@ -110,6 +112,17 @@ function loadRefineAutosave(): Session | null {
   }
 }
 
+function loadConstellateAutosave(): ConstellationConfig | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const data = JSON.parse(localStorage.getItem(CONSTELLATE_STORAGE_KEY) ?? "null") as ConstellationConfig | null;
+    if (!data?.version || !Array.isArray(data.constellations)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 function buildPreviewPayloadFromArrangement(arrangement: StarArrangement, filename?: string): PreviewPayload {
   return { arrangement, source: "arrangement", filename };
 }
@@ -128,7 +141,7 @@ export default function PreviewPage() {
   const [currentCamera, setCurrentCamera] = useState<{ lon: number; lat: number; fov: number } | null>(null);
   const [showDivisionLabels, setShowDivisionLabels] = useState(true);
   const [showDivisionTint, setShowDivisionTint] = useState(true);
-  const [showBookLabels, setShowBookLabels] = useState(false);
+  const [showBookLabels, setShowBookLabels] = useState(true);
   const [showChapterLabels, setShowChapterLabels] = useState(false);
   const [showConstellationArt, setShowConstellationArt] = useState(false);
   const [showBackdropStars, setShowBackdropStars] = useState(false);
@@ -149,7 +162,8 @@ export default function PreviewPage() {
   const [selectedHorizonThemeId, setSelectedHorizonThemeId] = useState(DEFAULT_HORIZON_THEME_ID || HORIZON_THEMES[0]?.id || "");
   const [customHorizon, setCustomHorizon] = useState<PreviewCustomHorizonDefaults>(PREVIEW_CUSTOM_HORIZON_DEFAULTS);
   const [horizonColorMode, setHorizonColorMode] = useState<HorizonColorMode>(PREVIEW_CUSTOM_HORIZON_DEFAULTS.mode);
-  const [constellationConfig, setConstellationConfig] = useState<any>(null);
+  const [constellationConfig, setConstellationConfig] = useState<ConstellationConfig | null>(null);
+  const [constellationSource, setConstellationSource] = useState<"default" | "custom" | "autosave">("default");
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [filterTestament, setFilterTestament] = useState("");
   const [filterDivision, setFilterDivision] = useState("");
@@ -200,7 +214,9 @@ export default function PreviewPage() {
         return response.json();
       })
       .then((data) => {
-        setConstellationConfig(data);
+        const constellateAutosave = loadConstellateAutosave();
+        setConstellationConfig(constellateAutosave ?? data);
+        setConstellationSource(constellateAutosave ? "autosave" : "default");
       })
       .catch(() => {
         setConstellationConfig(null);
@@ -294,14 +310,20 @@ export default function PreviewPage() {
     () => (displayArrangement ? computeDivisionRegions(displayArrangement) : undefined),
     [displayArrangement],
   );
+  // Same idea as adjustedDivisionRegions, but per-book — anchors book label placement
+  // to each book's true star centroid on whatever arrangement is on screen.
+  const adjustedBookRegions = useMemo<StarMapConfig["bookRegions"]>(
+    () => (displayArrangement ? computeBookRegions(displayArrangement) : undefined),
+    [displayArrangement],
+  );
 
   const previewConstellationConfig = useMemo(
     () => (
-      triangulationMode !== "off" && displayArrangement
+      triangulationMode !== "off" && displayArrangement && constellationSource === "default"
         ? buildTriangulatedConstellations(displayArrangement, constellationConfig)
         : constellationConfig
     ),
-    [constellationConfig, displayArrangement, triangulationMode],
+    [constellationConfig, constellationSource, displayArrangement, triangulationMode],
   );
 
   const config = useMemo<StarMapConfig | null>(() => {
@@ -319,6 +341,7 @@ export default function PreviewPage() {
       showGroupLabels: false,
       divisionColors,
       divisionRegions: adjustedDivisionRegions,
+      bookRegions: adjustedBookRegions,
       labelBehavior: {
         overlapPaddingPx: 2,
         reappearDelayMs: 60,
@@ -354,6 +377,7 @@ export default function PreviewPage() {
     divisionLabelPushFraction,
     divisionLabelHorizonPaddingDeg,
     adjustedDivisionRegions,
+    adjustedBookRegions,
     model,
     previewConstellationConfig,
     previewHorizonTheme,
@@ -407,6 +431,18 @@ export default function PreviewPage() {
       const next = buildPreviewPayloadFromSession(session, file.name);
       setPayload(next);
       setStatus(`Loaded preview source from ${file.name}.`);
+    } catch {
+      setStatus(`Could not load ${file.name}.`);
+    }
+  }, []);
+
+  const handleImportConstellations = useCallback(async (file: File) => {
+    try {
+      const next = JSON.parse(await file.text()) as ConstellationConfig;
+      if (!next?.version || !Array.isArray(next.constellations)) throw new Error("Invalid constellations file.");
+      setConstellationConfig(next);
+      setConstellationSource("custom");
+      setStatus(`Loaded custom constellations from ${file.name}.`);
     } catch {
       setStatus(`Could not load ${file.name}.`);
     }
@@ -466,6 +502,7 @@ export default function PreviewPage() {
               </p>
               <FileInput label="Load arrangement" filename="arrangement.json" onChange={handleImportArrangement} />
               <FileInput label="Load session" filename="skymap-session.json" onChange={handleImportSession} />
+              <FileInput label="Load constellations" filename="constellations.json" onChange={handleImportConstellations} />
             </BuilderSection>
           ) : (
             <>
@@ -486,6 +523,7 @@ export default function PreviewPage() {
                 <div className="flex gap-2">
                   <FileInput label="Replace arrangement" filename="arrangement.json" onChange={handleImportArrangement} compact />
                   <FileInput label="Replace session" filename="skymap-session.json" onChange={handleImportSession} compact />
+                  <FileInput label="Constellations" filename="constellations.json" onChange={handleImportConstellations} compact />
                 </div>
               </BuilderSection>
 
@@ -710,6 +748,7 @@ export default function PreviewPage() {
                   <p className="mt-1 text-xs text-white/52">{status}</p>
                   <p className="mt-1 text-[10px] text-white/28">Mode: {useVisibleHemisphere ? "Visible cap" : "Physical hemisphere"}</p>
                   <p className="mt-1 text-[10px] text-white/28">Lines: {triangulationMode}</p>
+                  <p className="mt-1 text-[10px] text-white/28">Constellations: {constellationSource}</p>
                   {lastSavedLabel && (
                     <p className="mt-1 text-[10px] text-white/28">Autosave: {lastSavedLabel}</p>
                   )}

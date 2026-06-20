@@ -456,7 +456,7 @@ export function buildModelFromArrangement(arrangement: StarArrangement): SceneMo
         label: chapter.bookName,
         level: 2,
         parent: did,
-        meta: { bookKey: chapter.bookKey, book: chapter.bookName },
+        meta: { bookKey: chapter.bookKey, book: chapter.bookName, division: chapter.divisionName },
       });
     }
 
@@ -535,6 +535,60 @@ export function computeDivisionRegions(arrangement: StarArrangement): DivisionRe
   return regions;
 }
 
+export type BookRegions = Record<string, { direction: [number, number, number]; angularRadiusRad: number }>;
+
+// Same approach as computeDivisionRegions, grouped by book instead of division — gives
+// each book a true star centroid + angular spread to anchor its label on, derived from
+// whatever arrangement is actually being displayed.
+export function computeBookRegions(arrangement: StarArrangement): BookRegions {
+  const positionsByBook = new Map<string, [number, number, number][]>();
+
+  for (const [id, entry] of Object.entries(arrangement)) {
+    if (!entry.position) continue;
+    const gi = chapterNodeToGlobalIndex(id);
+    if (gi === undefined) continue;
+    const chapter = CANON[gi];
+    if (!chapter) continue;
+
+    const list = positionsByBook.get(chapter.bookKey) ?? [];
+    list.push(entry.position);
+    positionsByBook.set(chapter.bookKey, list);
+  }
+
+  const regions: BookRegions = {};
+  for (const [bookKey, positions] of positionsByBook.entries()) {
+    const mean: [number, number, number] = [0, 0, 0];
+    for (const p of positions) {
+      mean[0] += p[0];
+      mean[1] += p[1];
+      mean[2] += p[2];
+    }
+    mean[0] /= positions.length;
+    mean[1] /= positions.length;
+    mean[2] /= positions.length;
+
+    const direction = normalizeVec({ x: mean[0], y: mean[1], z: mean[2] });
+    const directionVec: [number, number, number] = [direction.x, direction.y, direction.z];
+
+    let maxAngle = 0;
+    for (const p of positions) {
+      const pDir = normalizeVec({ x: p[0], y: p[1], z: p[2] });
+      const dot = Math.max(-1, Math.min(1, direction.x * pDir.x + direction.y * pDir.y + direction.z * pDir.z));
+      const angle = Math.acos(dot);
+      if (angle > maxAngle) maxAngle = angle;
+    }
+
+    const angularRadiusRad = Math.min(
+      DIVISION_ANGULAR_RADIUS_MAX_RAD,
+      Math.max(DIVISION_ANGULAR_RADIUS_MIN_RAD, maxAngle * DIVISION_ANGULAR_PADDING_FACTOR + DIVISION_ANGULAR_PADDING_MIN_RAD),
+    );
+
+    regions[bookKey] = { direction: directionVec, angularRadiusRad };
+  }
+
+  return regions;
+}
+
 export function buildAssignedScene(session: Session): { model: SceneModel; arrangement: StarArrangement } {
   const nodes: SceneNode[] = [];
   const arrangement: StarArrangement = {};
@@ -563,7 +617,7 @@ export function buildAssignedScene(session: Session): { model: SceneModel; arran
     const bid = nid.book(chapter.bookKey);
     if (!addedB.has(bid)) {
       addedB.add(bid);
-      nodes.push({ id: bid, label: chapter.bookName, level: 2, parent: did, meta: { bookKey: chapter.bookKey } });
+      nodes.push({ id: bid, label: chapter.bookName, level: 2, parent: did, meta: { bookKey: chapter.bookKey, division: chapter.divisionName } });
     }
 
     const cid = nid.chapter(chapter.bookKey, chapter.chapterNumber);
