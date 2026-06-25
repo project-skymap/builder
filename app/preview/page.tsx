@@ -8,7 +8,6 @@ import type { Session } from "../assign/session";
 import { importSession } from "../assign/session";
 import { BuilderSection, BuilderWorkspace } from "../components/BuilderWorkspace";
 import {
-  buildTriangulatedConstellations,
   buildArrangementFromSession,
   buildModelFromArrangement,
   computeBookRegions,
@@ -142,14 +141,14 @@ export default function PreviewPage() {
   const [showDivisionLabels, setShowDivisionLabels] = useState(true);
   const [showDivisionTint, setShowDivisionTint] = useState(true);
   const [showBookLabels, setShowBookLabels] = useState(true);
-  const [showChapterLabels, setShowChapterLabels] = useState(false);
+  const [showChapterLabels, setShowChapterLabels] = useState(true);
   const [showConstellationArt, setShowConstellationArt] = useState(false);
   const [showBackdropStars, setShowBackdropStars] = useState(false);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [showMoon, setShowMoon] = useState(false);
   const [showSunrise, setShowSunrise] = useState(false);
   const [showMilkyWay, setShowMilkyWay] = useState(false);
-  const [triangulationMode, setTriangulationMode] = useState<"off" | "focused" | "full">("off");
+  const [triangulationMode, setTriangulationMode] = useState<"off" | "focused" | "full">("focused");
   const [useVisibleHemisphere, setUseVisibleHemisphere] = useState(false);
   const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
   const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(22);
@@ -317,14 +316,13 @@ export default function PreviewPage() {
     [displayArrangement],
   );
 
-  const previewConstellationConfig = useMemo(
-    () => (
-      triangulationMode !== "off" && displayArrangement && constellationSource === "default"
-        ? buildTriangulatedConstellations(displayArrangement, constellationConfig)
-        : constellationConfig
-    ),
-    [constellationConfig, constellationSource, displayArrangement, triangulationMode],
-  );
+  const previewConstellationConfig = useMemo(() => {
+    if (!constellationConfig) return null;
+    const defined = constellationConfig.constellations.filter(
+      (c) => (c.lineSegments?.length ?? 0) > 0 || (c.linePaths?.length ?? 0) > 0,
+    );
+    return { ...constellationConfig, constellations: defined };
+  }, [constellationConfig]);
 
   const config = useMemo<StarMapConfig | null>(() => {
     if (!model || !displayArrangement) return null;
@@ -366,7 +364,7 @@ export default function PreviewPage() {
       starSizeScale,
       starSizeWeightPercentile,
       starZoomReveal: false,
-      camera: { lon: 42 * Math.PI / 180, lat: 36 * Math.PI / 180 },
+      camera: { lon: 0, lat: Math.PI / 2, fov: 135 },
     };
   }, [
     chapterLabelMaxFov,
