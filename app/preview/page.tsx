@@ -188,7 +188,7 @@ export default function PreviewPage() {
   const [payload, setPayload] = useState<PreviewPayload | null>(null);
   const [status, setStatus] = useState("No preview source loaded yet.");
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
-  const [currentFov, setCurrentFov] = useState(35);
+  const [currentFov, setCurrentFov] = useState(() => getViewModeProfile("zenith").defaultFov);
   const [currentCamera, setCurrentCamera] = useState<{ lon: number; lat: number; fov: number } | null>(null);
   const [showDivisionLabels, setShowDivisionLabels] = useState(false);
   const [showDivisionTint, setShowDivisionTint] = useState(false);
@@ -522,6 +522,7 @@ export default function PreviewPage() {
 
   const handleCameraChange = useCallback((lon: number, lat: number, fov: number) => {
     setCurrentCamera({ lon, lat, fov });
+    setCurrentFov(fov);
   }, []);
 
   const handleConstellationLinesChange = useCallback((checked: boolean) => {
@@ -913,9 +914,13 @@ export default function PreviewPage() {
               </BuilderSection>
 
               <BuilderSection label="Camera">
-                {currentCamera ? (
-                  <>
-                    <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2 font-mono">
+                <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2 font-mono">
+                  <div className="flex items-center justify-between text-[10px] text-white/48">
+                    <span>FOV</span>
+                    <span className="text-white/80">{currentFov.toFixed(1)}°</span>
+                  </div>
+                  {currentCamera ? (
+                    <>
                       <div className="flex items-center justify-between text-[10px] text-white/48">
                         <span>Lon</span>
                         <span className="text-white/80">{(currentCamera.lon * 180 / Math.PI).toFixed(1)}°</span>
@@ -924,15 +929,13 @@ export default function PreviewPage() {
                         <span>Lat</span>
                         <span className="text-white/80">{(currentCamera.lat * 180 / Math.PI).toFixed(1)}°</span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between text-[10px] text-white/48">
-                        <span>FOV</span>
-                        <span className="text-white/80">{currentCamera.fov.toFixed(1)}°</span>
-                      </div>
-                    </div>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-[10px] text-white/22">Pan or zoom the sky to see camera position.</p>
+                  )}
+                </div>
+                {currentCamera && (
                     <CameraSnippet lon={currentCamera.lon} lat={currentCamera.lat} fov={currentCamera.fov} />
-                  </>
-                ) : (
-                  <p className="text-[10px] text-white/22">Pan the sky to see camera position.</p>
                 )}
               </BuilderSection>
 
