@@ -89,6 +89,41 @@ function getYesFilterMatch(guest: Chapter, answer: Chapter): FilterMatch {
   return { level: "none", label: "No shared testament, division, or book.", filter: null };
 }
 
+function buildImmersiveHorizonTheme(theme: HorizonThemeConfig | undefined): HorizonThemeConfig | undefined {
+  if (!theme) return undefined;
+  const points = theme.profile?.points;
+  const averageAlt = points?.length
+    ? points.reduce((sum, point) => sum + point.altDeg, 0) / points.length
+    : 2.5;
+
+  return {
+    ...theme,
+    id: `${theme.id}-immersive`,
+    label: `${theme.label} Immersive`,
+    groundColor: "#121923",
+    horizonLineColor: "#8fa9c6",
+    horizonLineThickness: Math.min(theme.horizonLineThickness ?? 0, 1),
+    atmosphere: {
+      ...theme.atmosphere,
+      fogVisible: true,
+      fogBandTopAltDeg: 14,
+      fogBandBottomAltDeg: -18,
+      fogIntensity: 0.62,
+      minimalBrightness: 0.2,
+      minimalAltitudeDeg: -3,
+    },
+    profile: theme.profile
+      ? {
+          ...theme.profile,
+          points: points?.map((point) => ({
+            ...point,
+            altDeg: averageAlt + (point.altDeg - averageAlt) * 0.35,
+          })) ?? theme.profile.points,
+        }
+      : theme.profile,
+  };
+}
+
 function downloadJson(data: unknown, filename: string): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -348,6 +383,10 @@ export default function PreviewPage() {
       },
     };
   }, [customHorizon, horizonColorMode, selectedHorizonTheme]);
+  const effectiveHorizonTheme = useMemo(
+    () => viewMode === "immersive" ? buildImmersiveHorizonTheme(previewHorizonTheme) : previewHorizonTheme,
+    [previewHorizonTheme, viewMode],
+  );
   const optimizedArrangement = useMemo(
     () => (
       payload
@@ -413,17 +452,21 @@ export default function PreviewPage() {
       constellationLineMode: triangulationMode,
       showConstellationArt,
       constellationBaseOpacity,
-      showBackdropStars,
-      showAtmosphere,
+      showBackdropStars: showBackdropStars || viewMode === "immersive",
+      backdropStarsCount: viewMode === "immersive" ? 7000 : undefined,
+      backdropWideFovGain: viewMode === "immersive" ? 0.58 : undefined,
+      backdropSizeExponent: viewMode === "immersive" ? 1.0 : undefined,
+      backdropEnergy: viewMode === "immersive" ? 2.9 : undefined,
+      showAtmosphere: showAtmosphere || viewMode === "immersive",
       showMoon,
       showSunrise,
       showMilkyWay,
-      horizonTheme: previewHorizonTheme,
+      horizonTheme: effectiveHorizonTheme,
       viewMode,
       constellations: previewConstellationConfig,
       fitProjection: true,
       starSizeExponent,
-      starSizeScale,
+      starSizeScale: viewMode === "immersive" ? starSizeScale * 0.68 : starSizeScale,
       starSizeWeightPercentile,
       starZoomReveal: false,
       camera: {
@@ -444,7 +487,7 @@ export default function PreviewPage() {
     adjustedBookRegions,
     model,
     previewConstellationConfig,
-    previewHorizonTheme,
+    effectiveHorizonTheme,
     viewMode,
     selectedHorizonTheme,
     showAtmosphere,
