@@ -3,14 +3,17 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getViewModeProfile } from "@project-skymap/library";
-import type { ConstellationConfig, HierarchyFilter, HorizonThemeConfig, PlanetariumViewMode, StarArrangement, StarMapConfig, StarMapHandle } from "@project-skymap/library";
+import type { ConstellationConfig, HierarchyFilter, HorizonThemeConfig, PlanetariumViewMode, SceneNode, StarArrangement, StarMapConfig, StarMapHandle } from "@project-skymap/library";
 import { StarMap } from "@project-skymap/library";
+import { CANON } from "../assign/canon";
+import type { Chapter } from "../assign/canon";
 import type { Session } from "../assign/session";
 import { importSession } from "../assign/session";
 import { BuilderSection, BuilderWorkspace } from "../components/BuilderWorkspace";
 import {
   buildArrangementFromSession,
   buildModelFromArrangement,
+  chapterNodeToGlobalIndex,
   computeBookRegions,
   computeDivisionRegions,
   DEFAULT_HORIZON_THEME_ID,
@@ -37,6 +40,54 @@ type PreviewPayload = {
   source: "arrangement" | "session" | "autosave";
   filename?: string;
 };
+
+type FilterMatch = {
+  level: "book" | "division" | "testament" | "none";
+  label: string;
+  filter: HierarchyFilter | null;
+};
+
+function chapterTitle(chapter: Chapter): string {
+  return `${chapter.bookName} ${chapter.chapterNumber}`;
+}
+
+function getTodayChapterIndex(date = new Date()): number {
+  const start = new Date(date.getFullYear(), 0, 1).getTime();
+  const today = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const dayOfYear = Math.max(0, Math.floor((today - start) / 86_400_000));
+  return dayOfYear % CANON.length;
+}
+
+function getNodeChapter(node: SceneNode | null): Chapter | null {
+  if (!node || node.level !== 3) return null;
+  const chapterIndex = chapterNodeToGlobalIndex(node.id);
+  return chapterIndex === undefined ? null : CANON[chapterIndex] ?? null;
+}
+
+function getYesFilterMatch(guest: Chapter, answer: Chapter): FilterMatch {
+  if (guest.bookKey === answer.bookKey) {
+    return {
+      level: "book",
+      label: `Same book: ${answer.bookName}`,
+      filter: { testament: answer.testament, division: answer.divisionName, bookKey: answer.bookKey },
+    };
+  }
+  if (guest.testament === answer.testament && guest.divisionName === answer.divisionName) {
+    return {
+      level: "division",
+      label: `Same division: ${answer.divisionName}`,
+      filter: { testament: answer.testament, division: answer.divisionName },
+    };
+  }
+  if (guest.testament === answer.testament) {
+    return {
+      level: "testament",
+      label: `Same testament: ${answer.testament}`,
+      filter: { testament: answer.testament },
+    };
+  }
+  return { level: "none", label: "No shared testament, division, or book.", filter: null };
+}
 
 function downloadJson(data: unknown, filename: string): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -168,6 +219,9 @@ export default function PreviewPage() {
   const [filterTestament, setFilterTestament] = useState("");
   const [filterDivision, setFilterDivision] = useState("");
   const [filterBook, setFilterBook] = useState("");
+  const [selectedNode, setSelectedNode] = useState<SceneNode | null>(null);
+  const [answerChapterIndex, setAnswerChapterIndex] = useState(getTodayChapterIndex);
+  const [filterTestStatus, setFilterTestStatus] = useState("Select a chapter star to test Yes narrowing.");
 
   useEffect(() => {
     const saved = loadPreviewHorizonSettings();
@@ -249,12 +303,9 @@ export default function PreviewPage() {
   const filterBooks = useMemo(() => {
     if (!filterDivision || !model) return [];
     return model.nodes
-      .filter((n) => n.level === 2 && (n.meta?.testament as string) === filterTestament && (n.meta?.division as string) === filterDivision)
+      .filter((n) => n.level === 2 && n.parent === `D:${filterTestament}:${filterDivision}`)
       .map((n) => ({ id: n.meta?.bookKey as string, label: n.label }));
   }, [model, filterTestament, filterDivision]);
-
-  useEffect(() => { setFilterDivision(""); setFilterBook(""); }, [filterTestament]);
-  useEffect(() => { setFilterBook(""); }, [filterDivision]);
 
   useEffect(() => {
     if (!filterTestament) {
@@ -266,6 +317,16 @@ export default function PreviewPage() {
     if (filterBook) filter.bookKey = filterBook;
     mapRef.current?.setHierarchyFilter(filter);
   }, [filterTestament, filterDivision, filterBook]);
+
+  const selectedChapter = useMemo(() => getNodeChapter(selectedNode), [selectedNode]);
+  const answerChapter = CANON[answerChapterIndex] ?? CANON[0]!;
+  const currentFilterLabel = useMemo(() => {
+    if (!filterTestament) return "All stars";
+    const parts = [filterTestament];
+    if (filterDivision) parts.push(filterDivision);
+    if (filterBook) parts.push(filterBook);
+    return parts.join(" / ");
+  }, [filterBook, filterDivision, filterTestament]);
   const selectedHorizonTheme = useMemo<HorizonThemeConfig | undefined>(
     () => HORIZON_THEMES.find((theme) => theme.id === selectedHorizonThemeId) ?? HORIZON_THEMES[0],
     [selectedHorizonThemeId],
@@ -471,6 +532,39 @@ export default function PreviewPage() {
     setTriangulationMode(checked ? "full" : "focused");
   }, []);
 
+  const applyHierarchyFilter = useCallback((filter: HierarchyFilter | null) => {
+    setFilterTestament(filter?.testament ?? "");
+    setFilterDivision(filter?.division ?? "");
+    setFilterBook(filter?.bookKey ?? "");
+    mapRef.current?.setHierarchyFilter(filter);
+  }, []);
+
+  const handleSelectNode = useCallback((node: SceneNode) => {
+    setSelectedNode(node);
+    const chapter = getNodeChapter(node);
+    setFilterTestStatus(
+      chapter
+        ? `Selected guest star: ${chapterTitle(chapter)}.`
+        : "Selected object is not a chapter star.",
+    );
+  }, []);
+
+  const handleApplyYesNarrowing = useCallback(() => {
+    if (!selectedChapter) {
+      setFilterTestStatus("Select a chapter star before applying Yes narrowing.");
+      return;
+    }
+    const match = getYesFilterMatch(selectedChapter, answerChapter);
+    applyHierarchyFilter(match.filter);
+    setFilterTestStatus(match.filter ? `Applied ${match.label}.` : match.label);
+  }, [answerChapter, applyHierarchyFilter, selectedChapter]);
+
+  const handleUseTodayAnswer = useCallback(() => {
+    const index = getTodayChapterIndex();
+    setAnswerChapterIndex(index);
+    setFilterTestStatus(`Today's answer set to ${chapterTitle(CANON[index]!)}.`);
+  }, []);
+
   const handleRefreshViewport = useCallback(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -551,14 +645,21 @@ export default function PreviewPage() {
                 <SelectRow
                   label="Testament"
                   value={filterTestament}
-                  onChange={(v) => setFilterTestament(v)}
+                  onChange={(v) => {
+                    setFilterTestament(v);
+                    setFilterDivision("");
+                    setFilterBook("");
+                  }}
                   options={[{ value: "", label: "All" }, ...filterTestaments.map((t) => ({ value: t.id, label: t.label }))]}
                 />
                 {filterTestament && (
                   <SelectRow
                     label="Division"
                     value={filterDivision}
-                    onChange={(v) => setFilterDivision(v)}
+                    onChange={(v) => {
+                      setFilterDivision(v);
+                      setFilterBook("");
+                    }}
                     options={[{ value: "", label: "All divisions" }, ...filterDivisions.map((d) => ({ value: d.id, label: d.label }))]}
                   />
                 )}
@@ -570,6 +671,100 @@ export default function PreviewPage() {
                     options={[{ value: "", label: "All books" }, ...filterBooks.map((b) => ({ value: b.id, label: b.label }))]}
                   />
                 )}
+              </BuilderSection>
+
+              <BuilderSection label="Selected Star">
+                <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2">
+                  {selectedChapter ? (
+                    <>
+                      <div className="flex items-center justify-between gap-3 text-xs text-white/48">
+                        <span>Guest</span>
+                        <span className="text-right text-white/78">{chapterTitle(selectedChapter)}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-white/35">
+                        <span>Testament</span>
+                        <span className="text-right">{selectedChapter.testament}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-white/35">
+                        <span>Division</span>
+                        <span className="text-right">{selectedChapter.divisionName}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-white/35">
+                        <span>Book key</span>
+                        <span className="font-mono text-right">{selectedChapter.bookKey}</span>
+                      </div>
+                    </>
+                  ) : selectedNode ? (
+                    <>
+                      <div className="flex items-center justify-between gap-3 text-xs text-white/48">
+                        <span>Selected</span>
+                        <span className="text-right text-white/78">{selectedNode.label}</span>
+                      </div>
+                      <p className="mt-1 text-[10px] text-white/25">Select a chapter star to test Bible Game narrowing.</p>
+                    </>
+                  ) : (
+                    <p className="text-[10px] text-white/25">Click a star in the sky to make it the guest star.</p>
+                  )}
+                </div>
+              </BuilderSection>
+
+              <BuilderSection label="Game Test">
+                <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2">
+                  <div className="flex items-center justify-between gap-3 text-xs text-white/48">
+                    <span>Answer</span>
+                    <span className="text-right text-white/78">{chapterTitle(answerChapter)}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-white/35">
+                    <span>Division</span>
+                    <span className="text-right">{answerChapter.divisionName}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-white/35">
+                    <span>Current filter</span>
+                    <span className="text-right">{currentFilterLabel}</span>
+                  </div>
+                </div>
+                <label className="flex items-center justify-between gap-3 text-xs text-white/52">
+                  <span>Answer #</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={CANON.length}
+                    value={answerChapterIndex + 1}
+                    onChange={(event) => {
+                      const next = Math.max(1, Math.min(CANON.length, Number(event.target.value) || 1));
+                      setAnswerChapterIndex(next - 1);
+                    }}
+                    className="w-24 rounded border border-white/10 bg-white/[0.03] px-2 py-1 text-right text-xs text-white/78"
+                  />
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleApplyYesNarrowing}
+                    disabled={!selectedChapter}
+                    className="rounded border border-white/10 bg-white/[0.05] px-2 py-1.5 text-[10px] text-white/55 transition-colors hover:bg-white/[0.09] hover:text-white/75 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleUseTodayAnswer}
+                    className="rounded border border-white/10 bg-white/[0.05] px-2 py-1.5 text-[10px] text-white/55 transition-colors hover:bg-white/[0.09] hover:text-white/75"
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      applyHierarchyFilter(null);
+                      setFilterTestStatus("Cleared hierarchy filter.");
+                    }}
+                    className="rounded border border-white/10 bg-white/[0.05] px-2 py-1.5 text-[10px] text-white/55 transition-colors hover:bg-white/[0.09] hover:text-white/75"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <p className="text-[10px] leading-relaxed text-white/28">{filterTestStatus}</p>
               </BuilderSection>
 
               <BuilderSection label="Tuning">
@@ -775,6 +970,7 @@ export default function PreviewPage() {
             className="h-full w-full"
             onFovChange={setCurrentFov}
             onCameraChange={handleCameraChange}
+            onSelect={handleSelectNode}
           />
         </div>
       ) : (
