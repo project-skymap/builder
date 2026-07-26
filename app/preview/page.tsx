@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ConstellationConfig, HierarchyFilter, HorizonThemeConfig, StarArrangement, StarMapConfig, StarMapHandle } from "@project-skymap/library";
+import { getViewModeProfile } from "@project-skymap/library";
+import type { ConstellationConfig, HierarchyFilter, HorizonThemeConfig, PlanetariumViewMode, StarArrangement, StarMapConfig, StarMapHandle } from "@project-skymap/library";
 import { StarMap } from "@project-skymap/library";
 import type { Session } from "../assign/session";
 import { importSession } from "../assign/session";
@@ -138,19 +139,19 @@ export default function PreviewPage() {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [currentFov, setCurrentFov] = useState(35);
   const [currentCamera, setCurrentCamera] = useState<{ lon: number; lat: number; fov: number } | null>(null);
-  const [showDivisionLabels, setShowDivisionLabels] = useState(true);
-  const [showDivisionTint, setShowDivisionTint] = useState(true);
-  const [showBookLabels, setShowBookLabels] = useState(true);
-  const [showChapterLabels, setShowChapterLabels] = useState(true);
+  const [showDivisionLabels, setShowDivisionLabels] = useState(false);
+  const [showDivisionTint, setShowDivisionTint] = useState(false);
+  const [showBookLabels, setShowBookLabels] = useState(false);
+  const [showChapterLabels, setShowChapterLabels] = useState(false);
   const [showConstellationArt, setShowConstellationArt] = useState(false);
   const [showBackdropStars, setShowBackdropStars] = useState(false);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
   const [showMoon, setShowMoon] = useState(false);
   const [showSunrise, setShowSunrise] = useState(false);
   const [showMilkyWay, setShowMilkyWay] = useState(false);
-  const [triangulationMode, setTriangulationMode] = useState<"off" | "focused" | "full">("focused");
+  const [triangulationMode, setTriangulationMode] = useState<"off" | "focused" | "full">("off");
   const [useVisibleHemisphere, setUseVisibleHemisphere] = useState(false);
-  const [projection, setProjection] = useState<"perspective" | "stereographic" | "blended">("blended");
+  const [viewMode, setViewMode] = useState<PlanetariumViewMode>("zenith");
   const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(22);
   const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(40);
   const [starSizeExponent, setStarSizeExponent] = useState(4.0);
@@ -357,14 +358,18 @@ export default function PreviewPage() {
       showSunrise,
       showMilkyWay,
       horizonTheme: previewHorizonTheme,
-      projection,
+      viewMode,
       constellations: previewConstellationConfig,
       fitProjection: true,
       starSizeExponent,
       starSizeScale,
       starSizeWeightPercentile,
       starZoomReveal: false,
-      camera: { lon: 0, lat: Math.PI / 2, fov: 135 },
+      camera: {
+        lon: 0,
+        lat: viewMode === "immersive" ? Math.PI / 5 : Math.PI / 2,
+        fov: getViewModeProfile(viewMode).defaultFov,
+      },
     };
   }, [
     chapterLabelMaxFov,
@@ -379,7 +384,7 @@ export default function PreviewPage() {
     model,
     previewConstellationConfig,
     previewHorizonTheme,
-    projection,
+    viewMode,
     selectedHorizonTheme,
     showAtmosphere,
     showBackdropStars,
@@ -482,17 +487,13 @@ export default function PreviewPage() {
     <BuilderWorkspace
       route="preview"
       title="Preview"
-      subtitle="Render the refined sky through the actual Three.js library experience and judge the final atmosphere, readability, and constellation character."
-      sidebarWidthClass="w-80"
+      subtitle=""
+      sidebarWidthClass="w-144"
       collapsibleSidebar
       onSidebarHoverChange={setIsSidebarHovered}
       onRefreshViewport={handleRefreshViewport}
       sidebar={
         <>
-          <p className="text-xs leading-relaxed text-white/45">
-            Preview is the runtime check. It consumes the refined output and shows what the real planetarium experience will feel like through the library renderer.
-          </p>
-
           {!payload ? (
             <BuilderSection label="Load Source">
               <p className="text-[10px] leading-relaxed text-white/20">
@@ -573,13 +574,13 @@ export default function PreviewPage() {
 
               <BuilderSection label="Tuning">
                 <SelectRow
-                  label="Projection"
-                  value={projection}
-                  onChange={(value) => setProjection(value as typeof projection)}
+                  label="View mode"
+                  value={viewMode}
+                  onChange={(value) => setViewMode(value as PlanetariumViewMode)}
                   options={[
-                    { value: "blended", label: "Blended" },
-                    { value: "perspective", label: "Perspective" },
-                    { value: "stereographic", label: "Stereographic" },
+                    { value: "zenith", label: "Zenith" },
+                    { value: "immersive", label: "Immersive" },
+                    { value: "hybrid", label: "Hybrid" },
                   ]}
                 />
                 <SelectRow

@@ -17,10 +17,10 @@ export type PreviewCustomHorizonDefaults = {
 export const PREVIEW_CUSTOM_HORIZON_DEFAULTS: PreviewCustomHorizonDefaults = {
   mode: "custom",
   fill: "solid",
-  groundColor: "#040e3e",
-  horizonLineColor: "#2c3358",
-  gradientInnerColor: "#1d2b18",
-  gradientOuterColor: "#020302",
+  groundColor: "#111923",
+  horizonLineColor: "#6f8fb2",
+  gradientInnerColor: "#182538",
+  gradientOuterColor: "#070b13",
   gradientRadius: 0.95,
   gradientIntensity: 1,
 };

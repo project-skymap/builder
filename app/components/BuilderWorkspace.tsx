@@ -39,7 +39,7 @@ export function BuilderWorkspace({
         className={cx(
           sidebarWidthClass,
           collapsibleSidebar && sidebarCollapsed && "hidden",
-          "flex-shrink-0 border-r border-white/10 bg-[#07090f] overflow-y-auto",
+          "scrollbar-none flex-shrink-0 border-r border-white/10 bg-[#07090f] overflow-y-auto",
         )}
         onMouseEnter={() => onSidebarHoverChange?.(true)}
         onMouseLeave={() => onSidebarHoverChange?.(false)}
