@@ -106,6 +106,10 @@ function getNodeChapter(node: SceneNode | null): Chapter | null {
   return chapterIndex === undefined ? null : CANON[chapterIndex] ?? null;
 }
 
+function getChapterNodeId(chapter: Chapter): string {
+  return `C:${chapter.bookKey}:${chapter.chapterNumber}`;
+}
+
 function getYesFilterMatch(guest: Chapter, answer: Chapter): FilterMatch {
   if (guest.bookKey === answer.bookKey) {
     return {
@@ -549,6 +553,8 @@ export default function PreviewPage() {
       landscapeSilhouetteHeightDeg: zenithHorizonTuning.landscapeHeight,
       landscapeSilhouetteSoftness: zenithHorizonTuning.landscapeSoftness,
       landscapeSilhouetteColor: "#05080d",
+      selectedStarId: selectedChapter ? selectedNode?.id : null,
+      answerStarId: getChapterNodeId(answerChapter),
       viewMode,
       constellations: previewConstellationConfig,
       fitProjection: true,
@@ -575,7 +581,10 @@ export default function PreviewPage() {
     model,
     previewConstellationConfig,
     effectiveHorizonTheme,
+    answerChapter,
     immersiveTuning,
+    selectedChapter,
+    selectedNode,
     zenithHorizonTuning,
     viewMode,
     selectedHorizonTheme,
@@ -714,6 +723,15 @@ export default function PreviewPage() {
     setFilterTestStatus(`Today's answer set to ${chapterTitle(CANON[index]!)}.`);
   }, []);
 
+  const handleFlyToSelectedStar = useCallback(() => {
+    if (!selectedChapter || !selectedNode) return;
+    mapRef.current?.flyTo(selectedNode.id, 18);
+  }, [selectedChapter, selectedNode]);
+
+  const handleFlyToAnswerStar = useCallback(() => {
+    mapRef.current?.flyTo(getChapterNodeId(answerChapter), 18);
+  }, [answerChapter]);
+
   const handleRefreshViewport = useCallback(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -842,6 +860,25 @@ export default function PreviewPage() {
                         <span>Book key</span>
                         <span className="font-mono text-right">{selectedChapter.bookKey}</span>
                       </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={handleFlyToSelectedStar}
+                          className="rounded border border-sky-300/20 bg-sky-300/[0.08] px-2 py-1.5 text-[10px] text-sky-100/70 transition-colors hover:bg-sky-300/[0.14]"
+                        >
+                          Fly to guest
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedNode(null);
+                            setFilterTestStatus("Cleared guest star selection.");
+                          }}
+                          className="rounded border border-white/10 bg-white/[0.05] px-2 py-1.5 text-[10px] text-white/55 transition-colors hover:bg-white/[0.09] hover:text-white/75"
+                        >
+                          Clear guest
+                        </button>
+                      </div>
                     </>
                   ) : selectedNode ? (
                     <>
@@ -886,7 +923,7 @@ export default function PreviewPage() {
                     className="w-24 rounded border border-white/10 bg-white/[0.03] px-2 py-1 text-right text-xs text-white/78"
                   />
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   <button
                     type="button"
                     onClick={handleApplyYesNarrowing}
@@ -901,6 +938,13 @@ export default function PreviewPage() {
                     className="rounded border border-white/10 bg-white/[0.05] px-2 py-1.5 text-[10px] text-white/55 transition-colors hover:bg-white/[0.09] hover:text-white/75"
                   >
                     Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleFlyToAnswerStar}
+                    className="rounded border border-amber-300/20 bg-amber-300/[0.08] px-2 py-1.5 text-[10px] text-amber-100/70 transition-colors hover:bg-amber-300/[0.14]"
+                  >
+                    Fly
                   </button>
                   <button
                     type="button"
