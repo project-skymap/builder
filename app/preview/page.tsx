@@ -47,6 +47,48 @@ type FilterMatch = {
   filter: HierarchyFilter | null;
 };
 
+type ImmersiveTuning = {
+  starScale: number;
+  backdropCount: number;
+  backdropGain: number;
+  backdropEnergy: number;
+  horizonFlattening: number;
+  horizonWarp: number;
+  hazeStrength: number;
+};
+
+type ZenithHorizonTuning = {
+  groundAlpha: number;
+  horizonFlattening: number;
+  horizonWarp: number;
+  hazeStrength: number;
+  rimStrength: number;
+  landscapeOpacity: number;
+  landscapeHeight: number;
+  landscapeSoftness: number;
+};
+
+const DEFAULT_IMMERSIVE_TUNING: ImmersiveTuning = {
+  starScale: 0.68,
+  backdropCount: 7000,
+  backdropGain: 0.58,
+  backdropEnergy: 2.9,
+  horizonFlattening: 0.35,
+  horizonWarp: 0.45,
+  hazeStrength: 0.62,
+};
+
+const DEFAULT_ZENITH_HORIZON_TUNING: ZenithHorizonTuning = {
+  groundAlpha: 0,
+  horizonFlattening: 0,
+  horizonWarp: 0,
+  hazeStrength: 0,
+  rimStrength: 0,
+  landscapeOpacity: 0.6,
+  landscapeHeight: 5.0,
+  landscapeSoftness: 0.4,
+};
+
 function chapterTitle(chapter: Chapter): string {
   return `${chapter.bookName} ${chapter.chapterNumber}`;
 }
@@ -89,7 +131,7 @@ function getYesFilterMatch(guest: Chapter, answer: Chapter): FilterMatch {
   return { level: "none", label: "No shared testament, division, or book.", filter: null };
 }
 
-function buildImmersiveHorizonTheme(theme: HorizonThemeConfig | undefined): HorizonThemeConfig | undefined {
+function buildImmersiveHorizonTheme(theme: HorizonThemeConfig | undefined, tuning: ImmersiveTuning): HorizonThemeConfig | undefined {
   if (!theme) return undefined;
   const points = theme.profile?.points;
   const averageAlt = points?.length
@@ -108,7 +150,7 @@ function buildImmersiveHorizonTheme(theme: HorizonThemeConfig | undefined): Hori
       fogVisible: true,
       fogBandTopAltDeg: 14,
       fogBandBottomAltDeg: -18,
-      fogIntensity: 0.62,
+      fogIntensity: tuning.hazeStrength,
       minimalBrightness: 0.2,
       minimalAltitudeDeg: -3,
     },
@@ -117,7 +159,41 @@ function buildImmersiveHorizonTheme(theme: HorizonThemeConfig | undefined): Hori
           ...theme.profile,
           points: points?.map((point) => ({
             ...point,
-            altDeg: averageAlt + (point.altDeg - averageAlt) * 0.35,
+            altDeg: averageAlt + (point.altDeg - averageAlt) * tuning.horizonFlattening,
+          })) ?? theme.profile.points,
+        }
+      : theme.profile,
+  };
+}
+
+function buildZenithHorizonTheme(theme: HorizonThemeConfig | undefined, tuning: ZenithHorizonTuning): HorizonThemeConfig | undefined {
+  if (!theme) return undefined;
+  const points = theme.profile?.points;
+  const averageAlt = points?.length
+    ? points.reduce((sum, point) => sum + point.altDeg, 0) / points.length
+    : 2.5;
+
+  return {
+    ...theme,
+    id: `${theme.id}-zenith`,
+    label: `${theme.label} Zenith`,
+    horizonLineColor: "#88a8ca",
+    horizonLineThickness: tuning.rimStrength * 2,
+    atmosphere: {
+      ...theme.atmosphere,
+      fogVisible: true,
+      fogBandTopAltDeg: 12,
+      fogBandBottomAltDeg: -16,
+      fogIntensity: tuning.hazeStrength,
+      minimalBrightness: 0.18,
+      minimalAltitudeDeg: -3,
+    },
+    profile: theme.profile
+      ? {
+          ...theme.profile,
+          points: points?.map((point) => ({
+            ...point,
+            altDeg: averageAlt + (point.altDeg - averageAlt) * tuning.horizonFlattening,
           })) ?? theme.profile.points,
         }
       : theme.profile,
@@ -243,6 +319,8 @@ export default function PreviewPage() {
   const [starSizeExponent, setStarSizeExponent] = useState(4.0);
   const [starSizeScale, setStarSizeScale] = useState(1.25);
   const [starSizeWeightPercentile, setStarSizeWeightPercentile] = useState(1.0);
+  const [immersiveTuning, setImmersiveTuning] = useState<ImmersiveTuning>(DEFAULT_IMMERSIVE_TUNING);
+  const [zenithHorizonTuning, setZenithHorizonTuning] = useState<ZenithHorizonTuning>(DEFAULT_ZENITH_HORIZON_TUNING);
   const [divisionLabelPushFraction, setDivisionLabelPushFraction] = useState(0.45);
   const [divisionLabelHorizonPaddingDeg, setDivisionLabelHorizonPaddingDeg] = useState(25);
   const [selectedHorizonThemeId, setSelectedHorizonThemeId] = useState(DEFAULT_HORIZON_THEME_ID || HORIZON_THEMES[0]?.id || "");
@@ -383,10 +461,11 @@ export default function PreviewPage() {
       },
     };
   }, [customHorizon, horizonColorMode, selectedHorizonTheme]);
-  const effectiveHorizonTheme = useMemo(
-    () => viewMode === "immersive" ? buildImmersiveHorizonTheme(previewHorizonTheme) : previewHorizonTheme,
-    [previewHorizonTheme, viewMode],
-  );
+  const effectiveHorizonTheme = useMemo(() => {
+    if (viewMode === "immersive") return buildImmersiveHorizonTheme(previewHorizonTheme, immersiveTuning);
+    if (viewMode === "zenith") return buildZenithHorizonTheme(previewHorizonTheme, zenithHorizonTuning);
+    return previewHorizonTheme;
+  }, [immersiveTuning, previewHorizonTheme, viewMode, zenithHorizonTuning]);
   const optimizedArrangement = useMemo(
     () => (
       payload
@@ -453,20 +532,28 @@ export default function PreviewPage() {
       showConstellationArt,
       constellationBaseOpacity,
       showBackdropStars: showBackdropStars || viewMode === "immersive",
-      backdropStarsCount: viewMode === "immersive" ? 7000 : undefined,
-      backdropWideFovGain: viewMode === "immersive" ? 0.58 : undefined,
+      backdropStarsCount: viewMode === "immersive" ? Math.round(immersiveTuning.backdropCount) : undefined,
+      backdropWideFovGain: viewMode === "immersive" ? immersiveTuning.backdropGain : undefined,
       backdropSizeExponent: viewMode === "immersive" ? 1.0 : undefined,
-      backdropEnergy: viewMode === "immersive" ? 2.9 : undefined,
+      backdropEnergy: viewMode === "immersive" ? immersiveTuning.backdropEnergy : undefined,
       showAtmosphere: showAtmosphere || viewMode === "immersive",
       showMoon,
       showSunrise,
       showMilkyWay,
       horizonTheme: effectiveHorizonTheme,
+      immersiveHorizonWarp: viewMode === "immersive" ? immersiveTuning.horizonWarp : 0,
+      zenithHorizonWarp: viewMode === "zenith" ? zenithHorizonTuning.horizonWarp : 0,
+      horizonGroundAlpha: viewMode === "zenith" ? zenithHorizonTuning.groundAlpha : 1,
+      showLandscapeSilhouette: viewMode === "zenith",
+      landscapeSilhouetteOpacity: viewMode === "zenith" ? zenithHorizonTuning.landscapeOpacity : 0,
+      landscapeSilhouetteHeightDeg: zenithHorizonTuning.landscapeHeight,
+      landscapeSilhouetteSoftness: zenithHorizonTuning.landscapeSoftness,
+      landscapeSilhouetteColor: "#05080d",
       viewMode,
       constellations: previewConstellationConfig,
       fitProjection: true,
       starSizeExponent,
-      starSizeScale: viewMode === "immersive" ? starSizeScale * 0.68 : starSizeScale,
+      starSizeScale: viewMode === "immersive" ? starSizeScale * immersiveTuning.starScale : starSizeScale,
       starSizeWeightPercentile,
       starZoomReveal: false,
       camera: {
@@ -488,6 +575,8 @@ export default function PreviewPage() {
     model,
     previewConstellationConfig,
     effectiveHorizonTheme,
+    immersiveTuning,
+    zenithHorizonTuning,
     viewMode,
     selectedHorizonTheme,
     showAtmosphere,
@@ -519,6 +608,22 @@ export default function PreviewPage() {
   const handleResetCustomHorizon = useCallback(() => {
     setCustomHorizon(PREVIEW_CUSTOM_HORIZON_DEFAULTS);
     setHorizonColorMode(PREVIEW_CUSTOM_HORIZON_DEFAULTS.mode);
+  }, []);
+
+  const updateImmersiveTuning = useCallback((patch: Partial<ImmersiveTuning>) => {
+    setImmersiveTuning((current) => ({ ...current, ...patch }));
+  }, []);
+
+  const handleResetImmersiveTuning = useCallback(() => {
+    setImmersiveTuning(DEFAULT_IMMERSIVE_TUNING);
+  }, []);
+
+  const updateZenithHorizonTuning = useCallback((patch: Partial<ZenithHorizonTuning>) => {
+    setZenithHorizonTuning((current) => ({ ...current, ...patch }));
+  }, []);
+
+  const handleResetZenithHorizonTuning = useCallback(() => {
+    setZenithHorizonTuning(DEFAULT_ZENITH_HORIZON_TUNING);
   }, []);
 
   const handleImportArrangement = useCallback(async (file: File) => {
@@ -822,6 +927,156 @@ export default function PreviewPage() {
                     { value: "hybrid", label: "Hybrid" },
                   ]}
                 />
+                <div className={`flex flex-col gap-3 rounded-md border border-white/8 bg-white/[0.03] p-2.5 transition-opacity ${viewMode === "zenith" ? "opacity-100" : "opacity-45"}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] uppercase tracking-widest text-white/22">Zenith Horizon</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-white/25">{viewMode === "zenith" ? "Active" : "Inactive"}</span>
+                      <button
+                        type="button"
+                        onClick={handleResetZenithHorizonTuning}
+                        className="text-[10px] text-white/35 transition-colors hover:text-white/65"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                  <SliderRow
+                    label="Ground alpha"
+                    value={zenithHorizonTuning.groundAlpha}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => updateZenithHorizonTuning({ groundAlpha: value })}
+                  />
+                  <SliderRow
+                    label="Horizon shape"
+                    value={zenithHorizonTuning.horizonFlattening}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => updateZenithHorizonTuning({ horizonFlattening: value })}
+                  />
+                  <SliderRow
+                    label="Rim warp"
+                    value={zenithHorizonTuning.horizonWarp}
+                    min={0}
+                    max={0.45}
+                    step={0.01}
+                    onChange={(value) => updateZenithHorizonTuning({ horizonWarp: value })}
+                  />
+                  <SliderRow
+                    label="Rim haze"
+                    value={zenithHorizonTuning.hazeStrength}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => updateZenithHorizonTuning({ hazeStrength: value })}
+                  />
+                  <SliderRow
+                    label="Rim line"
+                    value={zenithHorizonTuning.rimStrength}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => updateZenithHorizonTuning({ rimStrength: value })}
+                  />
+                  <SliderRow
+                    label="Landscape opacity"
+                    value={zenithHorizonTuning.landscapeOpacity}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => updateZenithHorizonTuning({ landscapeOpacity: value })}
+                  />
+                  <SliderRow
+                    label="Landscape height"
+                    value={zenithHorizonTuning.landscapeHeight}
+                    min={0}
+                    max={18}
+                    step={0.25}
+                    onChange={(value) => updateZenithHorizonTuning({ landscapeHeight: value })}
+                  />
+                  <SliderRow
+                    label="Landscape softness"
+                    value={zenithHorizonTuning.landscapeSoftness}
+                    min={0}
+                    max={0.8}
+                    step={0.01}
+                    onChange={(value) => updateZenithHorizonTuning({ landscapeSoftness: value })}
+                  />
+                </div>
+                <div className={`flex flex-col gap-3 rounded-md border border-white/8 bg-white/[0.03] p-2.5 transition-opacity ${viewMode === "immersive" ? "opacity-100" : "opacity-45"}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] uppercase tracking-widest text-white/22">Immersive</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-white/25">{viewMode === "immersive" ? "Active" : "Inactive"}</span>
+                      <button
+                        type="button"
+                        onClick={handleResetImmersiveTuning}
+                        className="text-[10px] text-white/35 transition-colors hover:text-white/65"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                  <SliderRow
+                    label="Star scale"
+                    value={immersiveTuning.starScale}
+                    min={0.25}
+                    max={1.25}
+                    step={0.01}
+                    onChange={(value) => updateImmersiveTuning({ starScale: value })}
+                  />
+                  <SliderRow
+                    label="Backdrop count"
+                    value={immersiveTuning.backdropCount}
+                    min={1000}
+                    max={12000}
+                    step={250}
+                    onChange={(value) => updateImmersiveTuning({ backdropCount: value })}
+                  />
+                  <SliderRow
+                    label="Backdrop gain"
+                    value={immersiveTuning.backdropGain}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => updateImmersiveTuning({ backdropGain: value })}
+                  />
+                  <SliderRow
+                    label="Backdrop energy"
+                    value={immersiveTuning.backdropEnergy}
+                    min={0.5}
+                    max={5}
+                    step={0.05}
+                    onChange={(value) => updateImmersiveTuning({ backdropEnergy: value })}
+                  />
+                  <SliderRow
+                    label="Horizon shape"
+                    value={immersiveTuning.horizonFlattening}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => updateImmersiveTuning({ horizonFlattening: value })}
+                  />
+                  <SliderRow
+                    label="Horizon warp"
+                    value={immersiveTuning.horizonWarp}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => updateImmersiveTuning({ horizonWarp: value })}
+                  />
+                  <SliderRow
+                    label="Haze strength"
+                    value={immersiveTuning.hazeStrength}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => updateImmersiveTuning({ hazeStrength: value })}
+                  />
+                </div>
                 <SelectRow
                   label="Horizon theme"
                   value={selectedHorizonThemeId}
