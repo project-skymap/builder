@@ -307,8 +307,9 @@ export default function PreviewPage() {
   const [currentCamera, setCurrentCamera] = useState<{ lon: number; lat: number; fov: number } | null>(null);
   const [showDivisionLabels, setShowDivisionLabels] = useState(false);
   const [showDivisionTint, setShowDivisionTint] = useState(false);
-  const [showBookLabels, setShowBookLabels] = useState(false);
-  const [showChapterLabels, setShowChapterLabels] = useState(false);
+  const [showBookLabels, setShowBookLabels] = useState(true);
+  const [showChapterLabels, setShowChapterLabels] = useState(true);
+  const [groundCaptionText, setGroundCaptionText] = useState("Folly outweighs wisdom, leading to chaos");
   const [showConstellationArt, setShowConstellationArt] = useState(false);
   const [showBackdropStars, setShowBackdropStars] = useState(false);
   const [showAtmosphere, setShowAtmosphere] = useState(false);
@@ -562,9 +563,12 @@ export default function PreviewPage() {
       starSizeScale: viewMode === "immersive" ? starSizeScale * immersiveTuning.starScale : starSizeScale,
       starSizeWeightPercentile,
       starZoomReveal: false,
+      groundCaptionText: groundCaptionText || undefined,
+      // Fixed default camera position regardless of viewMode (including zenith,
+      // which previously always looked straight up at lat=90°).
       camera: {
-        lon: 0,
-        lat: viewMode === "immersive" ? Math.PI / 5 : Math.PI / 2,
+        lon: 20 * (Math.PI / 180),
+        lat: 40 * (Math.PI / 180),
         fov: getViewModeProfile(viewMode).defaultFov,
       },
     };
@@ -595,6 +599,7 @@ export default function PreviewPage() {
     showConstellationArt,
     showDivisionLabels,
     showDivisionTint,
+    groundCaptionText,
     showMilkyWay,
     showMoon,
     showSunrise,
@@ -792,6 +797,16 @@ export default function PreviewPage() {
                 <Toggle label="Division tint" checked={showDivisionTint} onChange={setShowDivisionTint} />
                 <Toggle label="Book labels" checked={showBookLabels} onChange={setShowBookLabels} />
                 <Toggle label="Chapter labels" checked={showChapterLabels} onChange={setShowChapterLabels} />
+                <label className="flex flex-col gap-1 text-xs text-white/52">
+                  <span>Ground caption text</span>
+                  <textarea
+                    value={groundCaptionText}
+                    onChange={(event) => setGroundCaptionText(event.target.value)}
+                    placeholder="Passage summary…"
+                    rows={2}
+                    className="w-full resize-none rounded border border-white/10 bg-white/[0.03] px-2 py-1.5 text-xs text-white/78 placeholder:text-white/25"
+                  />
+                </label>
                 <Toggle label="Constellation lines" checked={triangulationMode !== "off"} onChange={handleConstellationLinesChange} />
                 {triangulationMode !== "off" && (
                   <Toggle label="Keep lines always on" checked={triangulationMode === "full"} onChange={handleConstellationLinesAlwaysOnChange} />
