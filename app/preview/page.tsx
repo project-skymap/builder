@@ -320,7 +320,7 @@ export default function PreviewPage() {
   const [useVisibleHemisphere, setUseVisibleHemisphere] = useState(false);
   const [viewMode, setViewMode] = useState<PlanetariumViewMode>("zenith");
   const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(22);
-  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(40);
+  const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(80);
   const [starSizeExponent, setStarSizeExponent] = useState(4.0);
   const [starSizeScale, setStarSizeScale] = useState(1.25);
   const [starSizeWeightPercentile, setStarSizeWeightPercentile] = useState(1.0);
