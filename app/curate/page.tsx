@@ -44,6 +44,11 @@ type Vec3 = {
   z: number;
 };
 
+type Vec2 = {
+  x: number;
+  y: number;
+};
+
 const BASE_CONSTELLATION_CONFIG = baseConstellationConfig as unknown as ConstellationConfig;
 
 function safeParseJson<T>(raw: string | null): T | null {
@@ -206,6 +211,58 @@ function normalizeVec(vec: Vec3): Vec3 {
   const length = vecLength(vec);
   if (length <= 1e-9) return { x: 0, y: 1, z: 0 };
   return { x: vec.x / length, y: vec.y / length, z: vec.z / length };
+}
+
+function normalizeVec2(vec: Vec2): Vec2 {
+  const length = Math.hypot(vec.x, vec.y);
+  if (length <= 1e-9) return { x: 1, y: 0 };
+  return { x: vec.x / length, y: vec.y / length };
+}
+
+function dotVec(a: Vec3, b: Vec3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+function crossVec(a: Vec3, b: Vec3): Vec3 {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  };
+}
+
+function rotateVecAroundAxis(vec: Vec3, axis: Vec3, angleRad: number): Vec3 {
+  const unitAxis = normalizeVec(axis);
+  const cos = Math.cos(angleRad);
+  const sin = Math.sin(angleRad);
+  const cross = crossVec(unitAxis, vec);
+  const dot = dotVec(unitAxis, vec);
+  return {
+    x: vec.x * cos + cross.x * sin + unitAxis.x * dot * (1 - cos),
+    y: vec.y * cos + cross.y * sin + unitAxis.y * dot * (1 - cos),
+    z: vec.z * cos + cross.z * sin + unitAxis.z * dot * (1 - cos),
+  };
+}
+
+function defaultTangentFrame(centerNorm: Vec3): { rightDir: Vec3; upDir: Vec3 } {
+  const worldUp = { x: 0, y: 1, z: 0 };
+  const rightBasis = Math.abs(dotVec(centerNorm, worldUp)) > 0.99 ? { x: 1, y: 0, z: 0 } : worldUp;
+  let rightDir = normalizeVec(crossVec(rightBasis, centerNorm));
+  let upDir = normalizeVec(crossVec(centerNorm, rightDir));
+  rightDir = normalizeVec(crossVec(upDir, centerNorm));
+  return { rightDir, upDir };
+}
+
+function artworkTangentFrame(item: ConstellationItem | null, book: BookGeometry | null): { center: Vec3; rightDir: Vec3; upDir: Vec3 } {
+  const center = constellationCenterVec(item, book);
+  const centerNorm = normalizeVec(center);
+  let { rightDir, upDir } = defaultTangentFrame(centerNorm);
+  const rotationRad = ((item?.rotationDeg ?? 0) * Math.PI) / 180;
+  if (Math.abs(rotationRad) > 1e-9) {
+    rightDir = rotateVecAroundAxis(rightDir, centerNorm, rotationRad);
+    upDir = rotateVecAroundAxis(upDir, centerNorm, rotationRad);
+  }
+  return { center, rightDir, upDir };
 }
 
 function centerToMapPoint(item: ConstellationItem | null, book: BookGeometry | null): { x: number; y: number } {
@@ -582,10 +639,29 @@ export default function CuratePage() {
         const aspect = item.aspectRatio ?? (img?.complete && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1);
         const widthPx = radiusPx * 2 * Math.sqrt(aspect);
         const heightPx = radiusPx * 2 / Math.sqrt(aspect);
+        const frame = artworkTangentFrame(item, book);
+        const orientationProbe = 100;
+        const rightScreen = projectPoint(
+          domeVecToMapPoint({
+            x: frame.center.x + frame.rightDir.x * orientationProbe,
+            y: frame.center.y + frame.rightDir.y * orientationProbe,
+            z: frame.center.z + frame.rightDir.z * orientationProbe,
+          }),
+          viewport,
+        );
+        const upScreen = projectPoint(
+          domeVecToMapPoint({
+            x: frame.center.x + frame.upDir.x * orientationProbe,
+            y: frame.center.y + frame.upDir.y * orientationProbe,
+            z: frame.center.z + frame.upDir.z * orientationProbe,
+          }),
+          viewport,
+        );
+        const imageX = normalizeVec2({ x: rightScreen.x - screen.x, y: rightScreen.y - screen.y });
+        const imageY = normalizeVec2({ x: upScreen.x - screen.x, y: upScreen.y - screen.y });
 
         ctx.save();
-        ctx.translate(screen.x, screen.y);
-        ctx.rotate((item.rotationDeg * Math.PI) / 180 + spinRef.current);
+        ctx.transform(imageX.x, imageX.y, imageY.x, imageY.y, screen.x, screen.y);
         ctx.globalAlpha = selected ? Math.max(0.22, Math.min(0.82, item.opacity * 22)) : Math.max(0.08, Math.min(0.32, item.opacity * 14));
         ctx.globalCompositeOperation = item.blend === "additive" ? "lighter" : "source-over";
         if (img?.complete && img.naturalWidth > 0) {

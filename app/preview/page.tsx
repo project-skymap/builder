@@ -504,7 +504,7 @@ export default function PreviewPage() {
   const previewConstellationConfig = useMemo(() => {
     if (!constellationConfig) return null;
     const defined = constellationConfig.constellations.filter(
-      (c) => (c.lineSegments?.length ?? 0) > 0 || (c.linePaths?.length ?? 0) > 0,
+      (c) => (c.lineSegments?.length ?? 0) > 0 || (c.linePaths?.length ?? 0) > 0 || c.rotationDeg !== 0,
     );
     return { ...constellationConfig, constellations: defined };
   }, [constellationConfig]);
