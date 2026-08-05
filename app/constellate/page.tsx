@@ -149,7 +149,7 @@ function buildBookGeometry(arrangement: StarArrangement | null): BookGeometry[] 
   }));
 }
 
-const BASE_CONSTELLATION_CONFIG = baseConstellationConfig as ConstellationConfig;
+const BASE_CONSTELLATION_CONFIG = baseConstellationConfig as unknown as ConstellationConfig;
 
 function getBaseConstellationItem(bookKey: string): CustomConstellationConfig["constellations"][number] | null {
   return BASE_CONSTELLATION_CONFIG.constellations.find((constellation) => {
@@ -622,8 +622,8 @@ export default function ConstellatePage() {
                 <button onClick={() => downloadJson(constellationConfig, "constellations.json")} className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
                   Export constellations.json
                 </button>
-                <Link href="/preview" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
-                  Open Preview
+                <Link href="/curate" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
+                  Open Curate
                 </Link>
               </BuilderSection>
             </>
