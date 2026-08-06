@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type { SceneNode, SceneModel, StarArrangement, StarMapHandle, StarOutput } from "@project-skymap/library";
 import { StarMap } from "@project-skymap/library";
 import type { Session } from "./session";
@@ -18,6 +19,7 @@ import {
   getDefaultHorizonTheme,
   getDefaultVisibilityHorizonGuide,
 } from "../skymap/shared";
+import { savePipelineArrangement } from "../skymap/pipeline";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -442,6 +444,10 @@ export default function BuilderPage() {
   useEffect(() => {
     if (!session) return;
     saveSession(session);
+    if (Object.keys(session.assignments).length > 0) {
+      const { arrangement: nextArrangement } = buildAssignedSceneShared(session);
+      savePipelineArrangement(nextArrangement);
+    }
     setLastSavedAt(Date.now());
     setSessionStatus(prev =>
       prev.startsWith("Loaded ") || prev.startsWith("Restored ") || prev.startsWith("Imported ")
@@ -1309,7 +1315,7 @@ export default function BuilderPage() {
 
                 <BuilderSection label="Persistence">
                   <p className="text-[10px] leading-relaxed text-white/24">
-                    Your assignment session autosaves in this browser. Export the session file when you are ready to continue into Refine.
+                    Your assignment session autosaves in this browser. Assigned chapter positions also publish an `arrangement.json` draft for Curate.
                   </p>
                   <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2">
                     <p className="text-[10px] uppercase tracking-widest text-white/22">Status</p>
@@ -1335,6 +1341,7 @@ export default function BuilderPage() {
                     onClick={() => {
                       if (session) {
                         const { arrangement: arr } = buildAssignedSceneShared(session);
+                        savePipelineArrangement(arr);
                         downloadJson(arr, "arrangement.json");
                       }
                     }}
@@ -1348,6 +1355,9 @@ export default function BuilderPage() {
                   >
                     Assignments JSON
                   </button>
+                  <Link href="/curate" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
+                    Open Curate
+                  </Link>
                 </BuilderSection>
               </>
             )

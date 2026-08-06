@@ -7,6 +7,12 @@ import baseConstellationConfig from "../../public/constellations.json";
 import { CANON } from "../assign/canon";
 import { BuilderSection, BuilderWorkspace } from "../components/BuilderWorkspace";
 import { ARRANGEMENT_RADIUS, VERSE_COUNTS, chapterNodeToGlobalIndex, divisionTriangulationColor } from "../skymap/shared";
+import {
+  loadPipelineArrangement,
+  loadPipelineConstellations,
+  savePipelineArrangement,
+  savePipelineConstellations,
+} from "../skymap/pipeline";
 
 const ARRANGEMENT_STORAGE_KEY = "skymap-constellate-arrangement";
 const CONSTELLATION_STORAGE_KEY = "skymap-constellate-constellations";
@@ -52,31 +58,21 @@ function safeParseJson<T>(raw: string | null): T | null {
 
 function loadStoredArrangement(): StarArrangement | null {
   if (typeof window === "undefined") return null;
-  return safeParseJson<StarArrangement>(localStorage.getItem(ARRANGEMENT_STORAGE_KEY));
+  return loadPipelineArrangement() ?? safeParseJson<StarArrangement>(localStorage.getItem(ARRANGEMENT_STORAGE_KEY));
 }
 
 function loadStoredConstellations(): CustomConstellationConfig | null {
   if (typeof window === "undefined") return null;
-  const data = safeParseJson<CustomConstellationConfig>(localStorage.getItem(CONSTELLATION_STORAGE_KEY));
+  const data = loadPipelineConstellations() ?? safeParseJson<CustomConstellationConfig>(localStorage.getItem(CONSTELLATION_STORAGE_KEY));
   return data?.version && Array.isArray(data.constellations) ? data : null;
 }
 
 function saveStoredArrangement(arrangement: StarArrangement): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(ARRANGEMENT_STORAGE_KEY, JSON.stringify(arrangement));
-  } catch {
-    // Ignore storage quota issues.
-  }
+  savePipelineArrangement(arrangement);
 }
 
 function saveStoredConstellations(config: CustomConstellationConfig): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(CONSTELLATION_STORAGE_KEY, JSON.stringify(config));
-  } catch {
-    // Ignore storage quota issues.
-  }
+  savePipelineConstellations(config);
 }
 
 function downloadJson(data: unknown, filename: string): void {
@@ -158,9 +154,13 @@ function getBaseConstellationItem(bookKey: string): CustomConstellationConfig["c
   }) ?? null;
 }
 
-function makeConstellationItem(book: BookGeometry, lineSegments: LineSegment[]): CustomConstellationConfig["constellations"][number] {
+function makeConstellationItem(
+  book: BookGeometry,
+  lineSegments: LineSegment[],
+  existing: CustomConstellationConfig["constellations"][number] | null,
+): CustomConstellationConfig["constellations"][number] {
   const colour = divisionTriangulationColor(book.divisionName);
-  const base = getBaseConstellationItem(book.bookKey);
+  const base = existing ?? getBaseConstellationItem(book.bookKey);
   return {
     ...(base ?? {
       id: book.bookKey,
@@ -195,11 +195,21 @@ function makeConstellationItem(book: BookGeometry, lineSegments: LineSegment[]):
   };
 }
 
-function buildConstellationConfig(books: BookGeometry[], lineMap: Record<string, LineSegment[]>): CustomConstellationConfig {
+function buildConstellationConfig(
+  books: BookGeometry[],
+  lineMap: Record<string, LineSegment[]>,
+  draft: CustomConstellationConfig | null,
+): CustomConstellationConfig {
+  const existing = new Map<string, CustomConstellationConfig["constellations"][number]>();
+  for (const item of draft?.constellations ?? []) {
+    const bookKey = item.anchors[0]?.split(":")[1] ?? item.id;
+    existing.set(bookKey, item);
+  }
+
   return {
-    version: 1,
-    atlasBasePath: BASE_CONSTELLATION_CONFIG.atlasBasePath,
-    constellations: books.map((book) => makeConstellationItem(book, lineMap[book.bookKey] ?? [])),
+    version: draft?.version ?? 1,
+    atlasBasePath: draft?.atlasBasePath ?? BASE_CONSTELLATION_CONFIG.atlasBasePath,
+    constellations: books.map((book) => makeConstellationItem(book, lineMap[book.bookKey] ?? [], existing.get(book.bookKey) ?? null)),
   };
 }
 
@@ -232,7 +242,8 @@ export default function ConstellatePage() {
 
   const [arrangement, setArrangement] = useState<StarArrangement | null>(null);
   const [lineMap, setLineMap] = useState<Record<string, LineSegment[]>>({});
-  const [status, setStatus] = useState("Load an arrangement JSON exported from Refine.");
+  const [constellationDraft, setConstellationDraft] = useState<CustomConstellationConfig | null>(null);
+  const [status, setStatus] = useState("Load the refined arrangement and curated constellations draft.");
   const [filename, setFilename] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [selectedBookKey, setSelectedBookKey] = useState<string>("");
@@ -245,8 +256,9 @@ export default function ConstellatePage() {
     const storedConstellations = loadStoredConstellations();
     if (storedArrangement) {
       setArrangement(storedArrangement);
+      setConstellationDraft(storedConstellations);
       setLineMap(extractLineMap(storedConstellations));
-      setStatus(storedConstellations ? "Restored constellate autosave from this browser." : "Restored arrangement autosave from this browser.");
+      setStatus(storedConstellations ? "Restored refined arrangement and curated constellations from the Builder pipeline." : "Restored refined arrangement from the Builder pipeline.");
     }
   }, []);
 
@@ -259,7 +271,7 @@ export default function ConstellatePage() {
     () => selectedBook?.points.find((point) => point.id === pendingPointId) ?? null,
     [pendingPointId, selectedBook],
   );
-  const constellationConfig = useMemo(() => buildConstellationConfig(books, lineMap), [books, lineMap]);
+  const constellationConfig = useMemo(() => buildConstellationConfig(books, lineMap, constellationDraft), [books, constellationDraft, lineMap]);
   const lineCount = useMemo(
     () => Object.values(lineMap).reduce((sum, segments) => sum + segments.length, 0),
     [lineMap],
@@ -292,6 +304,7 @@ export default function ConstellatePage() {
       const nextBooks = buildBookGeometry(imported);
       if (nextBooks.length === 0) throw new Error("No chapter positions found.");
       setArrangement(imported);
+      savePipelineArrangement(imported);
       setLineMap({});
       setSelectedBookKey(nextBooks[0]?.bookKey ?? "");
       setPendingPointId(null);
@@ -307,6 +320,8 @@ export default function ConstellatePage() {
     try {
       const imported = JSON.parse(await file.text()) as CustomConstellationConfig;
       if (!Array.isArray(imported.constellations)) throw new Error("Invalid constellations file.");
+      setConstellationDraft(imported);
+      savePipelineConstellations(imported);
       setLineMap(extractLineMap(imported));
       setStatus(`Loaded constellation lines from ${file.name}.`);
       setPendingPointId(null);
@@ -528,20 +543,21 @@ export default function ConstellatePage() {
     <BuilderWorkspace
       route="constellate"
       title="Constellate"
-      subtitle="Load an arrangement, then click pairs of chapters within a book to define custom constellation lines for Preview."
+      subtitle="Connect refined chapter stars into constellation lines, preserving curated artwork placement."
       sidebarWidthClass="w-80"
       sidebar={
         <>
           <p className="text-xs leading-relaxed text-white/45">
-            Constellate consumes `arrangement.json` from Refine and produces `constellations.json` for Preview.
+            Constellate consumes the refined `arrangement.json` and curated `constellations.json`, then adds line segments for Preview.
           </p>
 
           {!arrangement ? (
-            <BuilderSection label="Load Arrangement">
+            <BuilderSection label="Load Inputs">
               <p className="text-[10px] leading-relaxed text-white/20">
-                Upload the arrangement JSON exported from Refine to begin drawing book constellations.
+                Upload the refined arrangement JSON and, optionally, the curated constellations JSON to begin drawing book lines.
               </p>
               <FileInput label="Load arrangement" filename="arrangement.json" onChange={handleImportArrangement} />
+              <FileInput label="Load constellations" filename="constellations.json" onChange={handleImportConstellations} />
             </BuilderSection>
           ) : (
             <>
@@ -559,7 +575,7 @@ export default function ConstellatePage() {
                 </div>
                 <div className="flex gap-2">
                   <FileInput label="Replace arrangement" filename="arrangement.json" onChange={handleImportArrangement} compact />
-                  <FileInput label="Load lines" filename="constellations.json" onChange={handleImportConstellations} compact />
+                  <FileInput label="Constellations" filename="constellations.json" onChange={handleImportConstellations} compact />
                 </div>
               </BuilderSection>
 
@@ -619,11 +635,14 @@ export default function ConstellatePage() {
                   <p className="mt-1 text-xs text-white/52">{status}</p>
                   {lastSavedLabel && <p className="mt-1 text-[10px] text-white/28">Autosave: {lastSavedLabel}</p>}
                 </div>
-                <button onClick={() => downloadJson(constellationConfig, "constellations.json")} className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
+                <button onClick={() => {
+                  savePipelineConstellations(constellationConfig);
+                  downloadJson(constellationConfig, "constellations.json");
+                }} className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
                   Export constellations.json
                 </button>
-                <Link href="/curate" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
-                  Open Curate
+                <Link href="/preview" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
+                  Open Preview
                 </Link>
               </BuilderSection>
             </>

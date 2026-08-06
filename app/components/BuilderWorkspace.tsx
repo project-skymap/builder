@@ -8,7 +8,7 @@ function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
 
-type BuilderRoute = "generate" | "assign" | "refine" | "constellate" | "curate" | "preview";
+type BuilderRoute = "generate" | "assign" | "curate" | "refine" | "constellate" | "preview";
 
 export function BuilderWorkspace({
   route,
@@ -58,9 +58,9 @@ export function BuilderWorkspace({
           <nav className="grid grid-cols-3 gap-2">
             <BuilderRouteLink href="/generate" label="Generate" active={route === "generate"} />
             <BuilderRouteLink href="/assign" label="Assign" active={route === "assign"} />
+            <BuilderRouteLink href="/curate" label="Curate" active={route === "curate"} />
             <BuilderRouteLink href="/refine" label="Refine" active={route === "refine"} />
             <BuilderRouteLink href="/constellate" label="Constellate" active={route === "constellate"} />
-            <BuilderRouteLink href="/curate" label="Curate" active={route === "curate"} />
             <BuilderRouteLink href="/preview" label="Preview" active={route === "preview"} />
           </nav>
 

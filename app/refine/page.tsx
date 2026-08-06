@@ -2,15 +2,27 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { StarArrangement, StarOutput } from "@project-skymap/library";
+import { DEFAULT_SKY_PARAMS } from "@project-skymap/library";
+import type { ConstellationConfig, SkyField, StarArrangement, StarOutput } from "@project-skymap/library";
 import type { Session } from "../assign/session";
 import { importSession } from "../assign/session";
 import { CANON, BOOKS } from "../assign/canon";
 import bibleRaw from "../../public/bible.json";
+import defaultArrangement from "../arrangement.json";
 import { BuilderSection, BuilderWorkspace } from "../components/BuilderWorkspace";
-import { buildArrangementFromSession, getDefaultVisibilityHorizonGuide, syncSkyStarToHemisphere } from "../skymap/shared";
+import { ARRANGEMENT_RADIUS, buildArrangementPositionFromStar, getDefaultVisibilityHorizonGuide, syncSkyStarToHemisphere, chapterNodeToGlobalIndex } from "../skymap/shared";
+import { loadPipelineArrangement, savePipelineArrangement } from "../skymap/pipeline";
+import {
+  artworkTangentFrame,
+  bookKeyFromConstellation,
+  centerToMapPoint,
+  domeVecToMapPoint,
+  normalizeVec2,
+  type Vec2,
+} from "../skymap/artworkProjection";
 
 const STORAGE_KEY = "skymap-refine-session";
+const BUILDER_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const SKY_FIELD_RENDER_RADIUS = 1.25;
 const SKY_FIELD_FADE_START = SKY_FIELD_RENDER_RADIUS * 0.88;
 const TRIANGULATION_MAX_EDGE_FACTOR = 2.35;
@@ -80,6 +92,10 @@ function projectSkyCoordinate(value: number): number {
   return value / SKY_FIELD_RENDER_RADIUS;
 }
 
+function centroidForBook(book: BookGeometry): Vec2 {
+  return book.centroid;
+}
+
 function clampToSkyRadius(x: number, y: number): { x: number; y: number } {
   const r = Math.hypot(x, y);
   if (r <= SKY_FIELD_RENDER_RADIUS || r === 0) return { x, y };
@@ -118,6 +134,12 @@ function loadRefineSession(): Session | null {
   }
 }
 
+function publicAssetPath(path: string): string {
+  if (/^https?:\/\//.test(path)) return path;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${BUILDER_BASE_PATH}${normalizedPath}`;
+}
+
 function downloadJson(data: unknown, filename: string): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -133,7 +155,60 @@ function exportRefineSession(session: Session): void {
 }
 
 function buildArrangement(session: Session): StarArrangement {
-  return buildArrangementFromSession(session);
+  const arrangement: StarArrangement = {};
+  for (const [chapterKey, starId] of Object.entries(session.assignments)) {
+    const chapter = CANON[Number(chapterKey)];
+    const star = session.skyField.stars[starId];
+    if (!chapter || !star) continue;
+    arrangement[`C:${chapter.bookKey}:${chapter.chapterNumber}`] = {
+      position: buildArrangementPositionFromStar(star),
+    };
+  }
+  return arrangement;
+}
+
+function buildRefineSessionFromArrangement(arrangement: StarArrangement): Session {
+  const stars: StarOutput[] = [];
+  const assignments: Record<number, number> = {};
+
+  const entries = Object.entries(arrangement)
+    .map(([chapterId, entry]) => {
+      const chapterGlobalIndex = chapterNodeToGlobalIndex(chapterId);
+      return chapterGlobalIndex === undefined || !entry.position ? null : { chapterId, entry, chapterGlobalIndex };
+    })
+    .filter((entry): entry is { chapterId: string; entry: StarArrangement[string]; chapterGlobalIndex: number } => entry !== null)
+    .sort((a, b) => a.chapterGlobalIndex - b.chapterGlobalIndex);
+
+  for (const item of entries) {
+    const position = item.entry.position!;
+    const x = -position[0] / ARRANGEMENT_RADIUS;
+    const y = position[2] / ARRANGEMENT_RADIUS;
+    const starId = stars.length;
+    stars.push(syncSkyStarToHemisphere({
+      id: starId,
+      x,
+      y,
+      x3: position[0] / ARRANGEMENT_RADIUS,
+      y3: position[1] / ARRANGEMENT_RADIUS,
+      z3: position[2] / ARRANGEMENT_RADIUS,
+      magnitude: 3.2,
+    }));
+    assignments[item.chapterGlobalIndex] = starId;
+  }
+
+  const skyField: SkyField = {
+    version: 2,
+    params: DEFAULT_SKY_PARAMS,
+    stars,
+    metrics: {
+      clusterDominanceScore: 0,
+      nearestNeighbourCV: 0,
+      maxVoidRadius: 0,
+      edgeGradientRatio: 0,
+    },
+  };
+
+  return { skyField, assignments, cursor: entries.length, undoStack: entries.map((entry) => entry.chapterGlobalIndex), bookArchetypes: {}, snapshots: [] };
 }
 
 function drawGeneratorStyleStar(
@@ -450,6 +525,7 @@ export default function RefinePage() {
   const spinRef = useRef(0);
   const hitStarsRef = useRef<Array<{ starId: number; x: number; y: number; r: number }>>([]);
   const hitEdgesRef = useRef<Array<{ bookKey: string; ax: number; ay: number; bx: number; by: number }>>([]);
+  const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const dragRef = useRef<
     | { type: "none" }
     | { type: "pan" | "spin"; lastX: number; lastY: number }
@@ -464,18 +540,67 @@ export default function RefinePage() {
   const [selectedBookKey, setSelectedBookKey] = useState<string | null>(null);
   const [showBookTriangulation, setShowBookTriangulation] = useState(true);
   const [showVisibilityGuides, setShowVisibilityGuides] = useState(true);
+  const [showConstellationArtwork, setShowConstellationArtwork] = useState(true);
+  const [constellationConfig, setConstellationConfig] = useState<ConstellationConfig | null>(null);
+  const [availableArtworkCount, setAvailableArtworkCount] = useState(0);
 
   useEffect(() => {
+    const arrangement = loadPipelineArrangement();
+    if (arrangement) {
+      setSession(buildRefineSessionFromArrangement(arrangement));
+      setSessionStatus("Restored arrangement.json from the Builder pipeline.");
+      return;
+    }
+    const bundledArrangement = defaultArrangement as unknown as StarArrangement;
+    if (Object.keys(bundledArrangement).length > 0) {
+      setSession(buildRefineSessionFromArrangement(bundledArrangement));
+      setSessionStatus("Loaded bundled arrangement.json from the codebase.");
+      return;
+    }
     const saved = loadRefineSession();
     setSession(saved);
-    setSessionStatus(saved ? "Restored autosaved refine session from this browser." : "Load a skymap session file exported from Assign.");
+    setSessionStatus(saved ? "Restored legacy refine session from this browser." : "Load an arrangement.json exported from Assign or Curate.");
   }, []);
+
+  useEffect(() => {
+    fetch(publicAssetPath("/constellations.json"))
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data: ConstellationConfig) => {
+        if (data?.version && Array.isArray(data.constellations)) setConstellationConfig(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!constellationConfig) return;
+    let cancelled = false;
+    const basePath = constellationConfig.atlasBasePath.replace(/\/$/, "");
+    let loadedCount = 0;
+    setAvailableArtworkCount(0);
+    for (const item of constellationConfig.constellations) {
+      const src = publicAssetPath(`${basePath}/${item.image}`);
+      if (imagesRef.current.has(src)) continue;
+      const image = new Image();
+      image.onload = () => {
+        if (cancelled) return;
+        loadedCount += 1;
+        setAvailableArtworkCount(loadedCount);
+      };
+      image.src = src;
+      imagesRef.current.set(src, image);
+    }
+    return () => { cancelled = true; };
+  }, [constellationConfig]);
 
   useEffect(() => {
     if (!session) return;
     saveRefineSession(session);
+    savePipelineArrangement(buildArrangement(session));
     setLastSavedAt(Date.now());
-    setSessionStatus("Autosaved refine session in this browser.");
+    setSessionStatus("Autosaved refined arrangement in this browser.");
   }, [session]);
 
   const books = useMemo(() => getBookGeometry(session), [session]);
@@ -526,9 +651,26 @@ export default function RefinePage() {
     try {
       const imported = await importSession(file);
       setSession(imported);
+      savePipelineArrangement(buildArrangement(imported));
       setSelectedStarId(null);
       setSelectedBookKey(null);
       setSessionStatus(`Loaded refine session from ${file.name}.`);
+      resetView(zoomRef, panRef, spinRef);
+    } catch {
+      setSessionStatus(`Could not load ${file.name}.`);
+    }
+  }, []);
+
+  const handleImportArrangement = useCallback(async (file: File) => {
+    try {
+      const imported = JSON.parse(await file.text()) as StarArrangement;
+      const nextSession = buildRefineSessionFromArrangement(imported);
+      if (nextSession.skyField.stars.length === 0) throw new Error("No chapter positions found.");
+      setSession(nextSession);
+      savePipelineArrangement(imported);
+      setSelectedStarId(null);
+      setSelectedBookKey(null);
+      setSessionStatus(`Loaded arrangement from ${file.name}.`);
       resetView(zoomRef, panRef, spinRef);
     } catch {
       setSessionStatus(`Could not load ${file.name}.`);
@@ -711,6 +853,10 @@ export default function RefinePage() {
       const scy = cy + panRef.current.y;
       const cos = Math.cos(spinRef.current);
       const sin = Math.sin(spinRef.current);
+      const projectPoint = (point: Vec2): Vec2 => ({
+        x: scx + projectSkyCoordinate(point.x * cos + point.y * sin) * radius,
+        y: scy + projectSkyCoordinate(-point.x * sin + point.y * cos) * radius,
+      });
 
       hitStarsRef.current = [];
       hitEdgesRef.current = [];
@@ -749,6 +895,55 @@ export default function RefinePage() {
         }
 
         ctx.restore();
+      }
+
+      if (showConstellationArtwork && constellationConfig) {
+        const itemByBookKey = new Map(constellationConfig.constellations.map((item) => [bookKeyFromConstellation(item), item]));
+        const basePath = constellationConfig.atlasBasePath.replace(/\/$/, "");
+
+        for (const book of books) {
+          const item = itemByBookKey.get(book.bookKey);
+          if (!item || item.radius <= 1) continue;
+
+          const center = centerToMapPoint(item, centroidForBook(book));
+          const screen = projectPoint(center);
+          const src = publicAssetPath(`${basePath}/${item.image}`);
+          const image = imagesRef.current.get(src);
+          if (!image?.complete || image.naturalWidth <= 0) continue;
+
+          const radiusPx = (item.radius / ARRANGEMENT_RADIUS / SKY_FIELD_RENDER_RADIUS) * radius;
+          const aspect = item.aspectRatio ?? (image.naturalHeight ? image.naturalWidth / image.naturalHeight : 1);
+          const widthPx = radiusPx * 2 * Math.sqrt(aspect);
+          const heightPx = radiusPx * 2 / Math.sqrt(aspect);
+          const frame = artworkTangentFrame(item, centroidForBook(book));
+          const orientationProbe = 100;
+          const rightScreen = projectPoint(domeVecToMapPoint({
+            x: frame.center.x + frame.rightDir.x * orientationProbe,
+            y: frame.center.y + frame.rightDir.y * orientationProbe,
+            z: frame.center.z + frame.rightDir.z * orientationProbe,
+          }));
+          const upScreen = projectPoint(domeVecToMapPoint({
+            x: frame.center.x + frame.upDir.x * orientationProbe,
+            y: frame.center.y + frame.upDir.y * orientationProbe,
+            z: frame.center.z + frame.upDir.z * orientationProbe,
+          }));
+          const imageX = normalizeVec2({ x: rightScreen.x - screen.x, y: rightScreen.y - screen.y });
+          const imageY = normalizeVec2({ x: upScreen.x - screen.x, y: upScreen.y - screen.y });
+
+          ctx.save();
+          ctx.transform(imageX.x, imageX.y, imageY.x, imageY.y, screen.x, screen.y);
+          ctx.globalCompositeOperation = "source-over";
+          ctx.globalAlpha = book.bookKey === selectedBookKey ? 0.32 : 0.22;
+          ctx.drawImage(image, -widthPx / 2, -heightPx / 2, widthPx, heightPx);
+          ctx.globalCompositeOperation = "source-over";
+          ctx.globalAlpha = 1;
+          ctx.setLineDash([8, 6]);
+          ctx.strokeStyle = book.bookKey === selectedBookKey ? "rgba(255,236,179,0.78)" : "rgba(170,190,255,0.34)";
+          ctx.lineWidth = book.bookKey === selectedBookKey ? 1.6 : 1.1;
+          ctx.strokeRect(-widthPx / 2, -heightPx / 2, widthPx, heightPx);
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
       }
 
       if (showBookTriangulation) {
@@ -816,26 +1011,27 @@ export default function RefinePage() {
 
     draw();
     return () => cancelAnimationFrame(animRef.current);
-  }, [books, selectedBookKey, selectedStarId, session, showBookTriangulation, showVisibilityGuides]);
+  }, [books, constellationConfig, selectedBookKey, selectedStarId, session, showBookTriangulation, showConstellationArtwork, showVisibilityGuides]);
 
   return (
     <BuilderWorkspace
       route="refine"
       title="Refine"
-      subtitle="Load the session exported from Assign, then nudge individual stars and whole book constellations into stronger shapes without losing the natural sky."
+      subtitle="Nudge chapter stars after Curate has established book artwork placement."
       sidebarWidthClass="w-80"
       sidebar={
         <>
           <p className="text-xs leading-relaxed text-white/45">
-            Refine works from the exported assign session. Drag stars directly, or grab a book by one of its triangulation lines to move the whole constellation.
+            Refine consumes the current `arrangement.json` draft and saves refined chapter positions back to that artifact.
           </p>
 
           {!session ? (
-            <BuilderSection label="Load Session">
+            <BuilderSection label="Load Arrangement">
               <p className="text-[10px] leading-relaxed text-white/20">
-                Load the `skymap-session.json` exported from Assign to begin refining.
+                Load the `arrangement.json` exported from Assign or restored from Curate to begin refining.
               </p>
-              <FileInput label="Load session" filename="skymap-session.json" onChange={handleImportSession} />
+              <FileInput label="Load arrangement" filename="arrangement.json" onChange={handleImportArrangement} />
+              <FileInput label="Load legacy session" filename="skymap-session.json" onChange={handleImportSession} />
             </BuilderSection>
           ) : (
             <>
@@ -912,6 +1108,19 @@ export default function RefinePage() {
                     className="accent-amber-400"
                   />
                 </label>
+                <label className="flex items-center justify-between text-xs text-white/52">
+                  <span>Show constellation art</span>
+                  <input
+                    type="checkbox"
+                    checked={showConstellationArtwork}
+                    onChange={(event) => setShowConstellationArtwork(event.target.checked)}
+                    className="accent-amber-400"
+                  />
+                </label>
+                <p className="text-[10px] leading-relaxed text-white/22">
+                  Overlays curated artwork boundaries from `constellations.json` so chapter positions can be refined inside the intended book art.
+                  {constellationConfig ? ` Found ${availableArtworkCount} available PNGs.` : " Public constellations.json has not loaded yet."}
+                </p>
                 <p className="text-[10px] leading-relaxed text-white/22">
                   Draws the default Preview horizon contour so book shapes can be refined inside the area expected to stay visible.
                 </p>
@@ -947,14 +1156,19 @@ export default function RefinePage() {
                   onClick={() => exportRefineSession(session)}
                   className="text-left text-xs text-white/45 transition-colors hover:text-white/70"
                 >
-                  Download refine session
+                  Download legacy refine session
                 </button>
-                <FileInput label="Load session" filename="skymap-session.json" onChange={handleImportSession} />
+                <FileInput label="Load arrangement" filename="arrangement.json" onChange={handleImportArrangement} />
+                <FileInput label="Load legacy session" filename="skymap-session.json" onChange={handleImportSession} />
               </BuilderSection>
 
               <BuilderSection label="Export">
                 <button
-                  onClick={() => downloadJson(buildArrangement(session), "arrangement.json")}
+                  onClick={() => {
+                    const arrangement = buildArrangement(session);
+                    savePipelineArrangement(arrangement);
+                    downloadJson(arrangement, "arrangement.json");
+                  }}
                   className="text-left text-xs text-white/45 transition-colors hover:text-white/70"
                 >
                   Export arrangement.json
@@ -965,8 +1179,8 @@ export default function RefinePage() {
                 >
                   Export session JSON
                 </button>
-                <Link href="/preview" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
-                  Open Preview
+                <Link href="/constellate" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
+                  Open Constellate
                 </Link>
               </BuilderSection>
             </>
@@ -999,7 +1213,7 @@ export default function RefinePage() {
           </>
         ) : (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <p className="text-sm text-white/10">load a skymap session to begin refining</p>
+            <p className="text-sm text-white/10">load an arrangement to begin refining</p>
           </div>
         )}
       </div>

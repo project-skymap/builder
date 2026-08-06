@@ -9,6 +9,7 @@ import { CANON } from "../assign/canon";
 import type { Chapter } from "../assign/canon";
 import type { Session } from "../assign/session";
 import { importSession } from "../assign/session";
+import defaultArrangement from "../arrangement.json";
 import { BuilderSection, BuilderWorkspace } from "../components/BuilderWorkspace";
 import {
   buildArrangementFromSession,
@@ -29,6 +30,7 @@ import {
   type HorizonColorMode,
   type PreviewCustomHorizonDefaults,
 } from "./config";
+import { loadPipelineArrangement, loadPipelineConstellations, savePipelineArrangement, savePipelineConstellations } from "../skymap/pipeline";
 
 const PREVIEW_STORAGE_KEY = "skymap-preview-arrangement";
 const PREVIEW_HORIZON_SETTINGS_KEY = "skymap-preview-horizon-settings";
@@ -216,6 +218,12 @@ function downloadJson(data: unknown, filename: string): void {
 
 function loadPreviewPayload(): PreviewPayload | null {
   if (typeof window === "undefined") return null;
+  const arrangement = loadPipelineArrangement();
+  if (arrangement) return { arrangement, source: "arrangement", filename: "pipeline arrangement.json" };
+  const bundledArrangement = defaultArrangement as unknown as StarArrangement;
+  if (Object.keys(bundledArrangement).length > 0) {
+    return { arrangement: bundledArrangement, source: "arrangement", filename: "bundled arrangement.json" };
+  }
   try {
     const raw = localStorage.getItem(PREVIEW_STORAGE_KEY);
     if (!raw) return null;
@@ -280,6 +288,8 @@ function loadRefineAutosave(): Session | null {
 
 function loadConstellateAutosave(): ConstellationConfig | null {
   if (typeof window === "undefined") return null;
+  const pipelineConstellations = loadPipelineConstellations();
+  if (pipelineConstellations) return pipelineConstellations;
   try {
     const data = JSON.parse(localStorage.getItem(CONSTELLATE_STORAGE_KEY) ?? "null") as ConstellationConfig | null;
     if (!data?.version || !Array.isArray(data.constellations)) return null;
@@ -295,6 +305,25 @@ function buildPreviewPayloadFromArrangement(arrangement: StarArrangement, filena
 
 function buildPreviewPayloadFromSession(session: Session, filename?: string): PreviewPayload {
   return { arrangement: buildArrangementFromSession(session), source: "session", filename };
+}
+
+function addConstellationCentersToArrangement(
+  arrangement: StarArrangement,
+  config: ConstellationConfig | null,
+): StarArrangement {
+  if (!config) return arrangement;
+  const entries = config.constellations.filter((item) => Array.isArray(item.center) && item.center.length >= 3);
+  if (entries.length === 0) return arrangement;
+
+  const next: StarArrangement = { ...arrangement };
+  for (const item of entries) {
+    const [x, y, z] = item.center as [number, number, number];
+    next[item.id] = {
+      ...next[item.id],
+      center: [x, y, z],
+    };
+  }
+  return next;
 }
 
 export default function PreviewPage() {
@@ -471,13 +500,17 @@ export default function PreviewPage() {
     if (viewMode === "zenith") return buildZenithHorizonTheme(previewHorizonTheme, zenithHorizonTuning);
     return previewHorizonTheme;
   }, [immersiveTuning, previewHorizonTheme, viewMode, zenithHorizonTuning]);
+  const previewArrangement = useMemo(
+    () => (payload ? addConstellationCentersToArrangement(payload.arrangement, constellationConfig) : null),
+    [constellationConfig, payload],
+  );
   const optimizedArrangement = useMemo(
     () => (
-      payload
-        ? optimizeArrangementForVisibility(payload.arrangement, selectedHorizonTheme)
+      previewArrangement
+        ? optimizeArrangementForVisibility(previewArrangement, selectedHorizonTheme)
         : null
     ),
-    [payload, selectedHorizonTheme],
+    [previewArrangement, selectedHorizonTheme],
   );
   const displayArrangement = useMemo(
     () => (
@@ -504,10 +537,15 @@ export default function PreviewPage() {
   const previewConstellationConfig = useMemo(() => {
     if (!constellationConfig) return null;
     const defined = constellationConfig.constellations.filter(
-      (c) => (c.lineSegments?.length ?? 0) > 0 || (c.linePaths?.length ?? 0) > 0 || c.rotationDeg !== 0,
+      (c) => (
+        (c.lineSegments?.length ?? 0) > 0 ||
+        (c.linePaths?.length ?? 0) > 0 ||
+        c.rotationDeg !== 0 ||
+        (constellationSource !== "default" && c.radius > 1)
+      ),
     );
     return { ...constellationConfig, constellations: defined };
-  }, [constellationConfig]);
+  }, [constellationConfig, constellationSource]);
 
   const config = useMemo<StarMapConfig | null>(() => {
     if (!model || !displayArrangement) return null;
@@ -645,6 +683,7 @@ export default function PreviewPage() {
       const arrangement = JSON.parse(await file.text()) as StarArrangement;
       const next = buildPreviewPayloadFromArrangement(arrangement, file.name);
       setPayload(next);
+      savePipelineArrangement(arrangement);
       setStatus(`Loaded arrangement from ${file.name}.`);
     } catch {
       setStatus(`Could not load ${file.name}.`);
@@ -667,6 +706,7 @@ export default function PreviewPage() {
       const next = JSON.parse(await file.text()) as ConstellationConfig;
       if (!next?.version || !Array.isArray(next.constellations)) throw new Error("Invalid constellations file.");
       setConstellationConfig(next);
+      savePipelineConstellations(next);
       setConstellationSource("custom");
       setStatus(`Loaded custom constellations from ${file.name}.`);
     } catch {
@@ -1313,8 +1353,8 @@ export default function PreviewPage() {
                 >
                   Export arrangement.json
                 </button>
-                <Link href="/refine" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
-                  Return to Refine
+                <Link href="/constellate" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
+                  Return to Constellate
                 </Link>
               </BuilderSection>
             </>
