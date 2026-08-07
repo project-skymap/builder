@@ -605,7 +605,7 @@ export default function PreviewPage() {
       // Fixed default camera position regardless of viewMode (including zenith,
       // which previously always looked straight up at lat=90°).
       camera: {
-        lon: 20 * (Math.PI / 180),
+        lon: 245 * (Math.PI / 180),
         lat: 40 * (Math.PI / 180),
         fov: getViewModeProfile(viewMode).defaultFov,
       },
