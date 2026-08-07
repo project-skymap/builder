@@ -14,6 +14,7 @@ import { BuilderSection, BuilderWorkspace } from "../components/BuilderWorkspace
 import {
   buildArrangementFromSession,
   buildModelFromArrangement,
+  ARRANGEMENT_RADIUS,
   chapterNodeToGlobalIndex,
   computeBookRegions,
   computeDivisionRegions,
@@ -68,6 +69,15 @@ type ZenithHorizonTuning = {
   landscapeOpacity: number;
   landscapeHeight: number;
   landscapeSoftness: number;
+};
+
+type Vec3Tuple = [number, number, number];
+type NudgeTargetKind = "artwork" | "book" | "star";
+type NudgeMoveMode = "position" | "rotation";
+type NudgeTarget = {
+  kind: NudgeTargetKind;
+  id: string;
+  mode: NudgeMoveMode;
 };
 
 const DEFAULT_IMMERSIVE_TUNING: ImmersiveTuning = {
@@ -216,6 +226,63 @@ function downloadJson(data: unknown, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+function normalizeTuple(position: Vec3Tuple): Vec3Tuple {
+  const length = Math.hypot(position[0], position[1], position[2]);
+  if (length <= 1e-9) return [0, ARRANGEMENT_RADIUS, 0];
+  return [position[0] / length, position[1] / length, position[2] / length];
+}
+
+function rotateTupleAroundAxis(position: Vec3Tuple, axis: Vec3Tuple, angleDeg: number): Vec3Tuple {
+  const axisLength = Math.hypot(axis[0], axis[1], axis[2]);
+  if (axisLength <= 1e-9) return position;
+  const [ux, uy, uz] = [axis[0] / axisLength, axis[1] / axisLength, axis[2] / axisLength];
+  const angle = (angleDeg * Math.PI) / 180;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const [x, y, z] = position;
+  const dot = ux * x + uy * y + uz * z;
+  return [
+    x * cos + (uy * z - uz * y) * sin + ux * dot * (1 - cos),
+    y * cos + (uz * x - ux * z) * sin + uy * dot * (1 - cos),
+    z * cos + (ux * y - uy * x) * sin + uz * dot * (1 - cos),
+  ];
+}
+
+function nudgeSkyPosition(position: Vec3Tuple, key: string, stepDeg: number): Vec3Tuple {
+  if (key === "ArrowLeft") return rotateTupleAroundAxis(position, [0, 1, 0], -stepDeg);
+  if (key === "ArrowRight") return rotateTupleAroundAxis(position, [0, 1, 0], stepDeg);
+
+  const direction = normalizeTuple(position);
+  let meridianAxis: Vec3Tuple = [-direction[2], 0, direction[0]];
+  if (Math.hypot(meridianAxis[0], meridianAxis[1], meridianAxis[2]) <= 1e-6) {
+    meridianAxis = [1, 0, 0];
+  }
+  return rotateTupleAroundAxis(position, meridianAxis, key === "ArrowUp" ? stepDeg : -stepDeg);
+}
+
+function nudgeArrangementPositions(
+  arrangement: StarArrangement,
+  ids: string[],
+  key: string,
+  stepDeg: number,
+): StarArrangement {
+  const next: StarArrangement = { ...arrangement };
+  for (const id of ids) {
+    const entry = next[id];
+    if (!entry?.position) continue;
+    next[id] = {
+      ...entry,
+      position: nudgeSkyPosition(entry.position, key, stepDeg),
+    };
+  }
+  return next;
+}
+
+function formatVec(position: Vec3Tuple | null | undefined): string {
+  if (!position) return "none";
+  return position.map((value) => value.toFixed(1)).join(", ");
+}
+
 function loadPreviewPayload(): PreviewPayload | null {
   if (typeof window === "undefined") return null;
   const arrangement = loadPipelineArrangement();
@@ -347,6 +414,7 @@ export default function PreviewPage() {
   const [showMilkyWay, setShowMilkyWay] = useState(false);
   const [triangulationMode, setTriangulationMode] = useState<"off" | "focused" | "full">("focused");
   const [useVisibleHemisphere, setUseVisibleHemisphere] = useState(false);
+  const [edgePanEnabled, setEdgePanEnabled] = useState(false);
   const [viewMode, setViewMode] = useState<PlanetariumViewMode>("zenith");
   const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(22);
   const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(80);
@@ -369,6 +437,9 @@ export default function PreviewPage() {
   const [selectedNode, setSelectedNode] = useState<SceneNode | null>(null);
   const [answerChapterIndex, setAnswerChapterIndex] = useState(getTodayChapterIndex);
   const [filterTestStatus, setFilterTestStatus] = useState("Select a chapter star to test Yes narrowing.");
+  const [nudgeTarget, setNudgeTarget] = useState<NudgeTarget>({ kind: "artwork", id: "", mode: "position" });
+  const [nudgeStepDeg, setNudgeStepDeg] = useState(0.25);
+  const [nudgeStatus, setNudgeStatus] = useState("No nudge target selected.");
 
   useEffect(() => {
     const saved = loadPreviewHorizonSettings();
@@ -454,6 +525,36 @@ export default function PreviewPage() {
       .map((n) => ({ id: n.meta?.bookKey as string, label: n.label }));
   }, [model, filterTestament, filterDivision]);
 
+  const bookNodes = useMemo(
+    () => model?.nodes.filter((node) => node.level === 2) ?? [],
+    [model],
+  );
+  const chapterNodes = useMemo(
+    () => model?.nodes.filter((node) => node.level === 3) ?? [],
+    [model],
+  );
+  const visibleConstellationItems = useMemo(
+    () => constellationConfig?.constellations ?? [],
+    [constellationConfig],
+  );
+  const nudgeSelectedBook = useMemo(
+    () => bookNodes.find((node) => node.id === nudgeTarget.id) ?? null,
+    [bookNodes, nudgeTarget.id],
+  );
+  const nudgeSelectedStar = useMemo(
+    () => chapterNodes.find((node) => node.id === nudgeTarget.id) ?? null,
+    [chapterNodes, nudgeTarget.id],
+  );
+  const nudgeSelectedArtwork = useMemo(
+    () => visibleConstellationItems.find((item) => item.id === nudgeTarget.id) ?? null,
+    [nudgeTarget.id, visibleConstellationItems],
+  );
+  const nudgePosition = useMemo(() => {
+    if (nudgeTarget.kind === "artwork") return nudgeSelectedArtwork?.center?.length === 3 ? nudgeSelectedArtwork.center as Vec3Tuple : null;
+    if (!payload) return null;
+    return payload.arrangement[nudgeTarget.id]?.position ?? null;
+  }, [nudgeSelectedArtwork, nudgeTarget.id, nudgeTarget.kind, payload]);
+
   useEffect(() => {
     if (!filterTestament) {
       mapRef.current?.setHierarchyFilter(null);
@@ -464,6 +565,29 @@ export default function PreviewPage() {
     if (filterBook) filter.bookKey = filterBook;
     mapRef.current?.setHierarchyFilter(filter);
   }, [filterTestament, filterDivision, filterBook]);
+
+  useEffect(() => {
+    if (!nudgeTarget.id) return;
+
+    if (nudgeTarget.kind === "star" && nudgeSelectedStar) {
+      setSelectedNode(nudgeSelectedStar);
+      setNudgeStatus(`Highlighted ${nudgeSelectedStar.label}.`);
+      return;
+    }
+
+    if (nudgeTarget.kind === "book" && nudgeSelectedBook) {
+      setSelectedNode(nudgeSelectedBook);
+      mapRef.current?.setFocusedBook(nudgeSelectedBook.id);
+      setNudgeStatus(`Highlighted ${nudgeSelectedBook.label}.`);
+      return;
+    }
+
+    if (nudgeTarget.kind === "artwork" && nudgeSelectedArtwork) {
+      setSelectedNode({ id: nudgeSelectedArtwork.id, label: nudgeSelectedArtwork.title, level: -1 });
+      setShowConstellationArt(true);
+      setNudgeStatus(`Highlighted ${nudgeSelectedArtwork.title}.`);
+    }
+  }, [nudgeSelectedArtwork, nudgeSelectedBook, nudgeSelectedStar, nudgeTarget.id, nudgeTarget.kind]);
 
   const selectedChapter = useMemo(() => getNodeChapter(selectedNode), [selectedNode]);
   const answerChapter = CANON[answerChapterIndex] ?? CANON[0]!;
@@ -594,6 +718,8 @@ export default function PreviewPage() {
       landscapeSilhouetteColor: "#05080d",
       selectedStarId: selectedChapter ? selectedNode?.id : null,
       answerStarId: getChapterNodeId(answerChapter),
+      focus: { nodeId: nudgeTarget.id || null },
+      edgePanEnabled,
       viewMode,
       constellations: previewConstellationConfig,
       fitProjection: true,
@@ -624,12 +750,14 @@ export default function PreviewPage() {
     previewConstellationConfig,
     effectiveHorizonTheme,
     answerChapter,
+    edgePanEnabled,
     immersiveTuning,
     selectedChapter,
     selectedNode,
     zenithHorizonTuning,
     viewMode,
     selectedHorizonTheme,
+    nudgeTarget.id,
     showAtmosphere,
     showBackdropStars,
     showBookLabels,
@@ -741,6 +869,133 @@ export default function PreviewPage() {
     setFilterBook(filter?.bookKey ?? "");
     mapRef.current?.setHierarchyFilter(filter);
   }, []);
+
+  const handleNudgeTargetKindChange = useCallback((kind: NudgeTargetKind) => {
+    setNudgeTarget({ kind, id: "", mode: "position" });
+    setNudgeStatus("Choose a target.");
+  }, []);
+
+  const handleNudgeTargetIdChange = useCallback((id: string) => {
+    setNudgeTarget((current) => ({ ...current, id }));
+    setNudgeStatus("Target changed.");
+  }, []);
+
+  const handleHighlightNudgeTarget = useCallback(() => {
+    if (!nudgeTarget.id) {
+      setNudgeStatus("Choose a nudge target first.");
+      return;
+    }
+
+    if (nudgeTarget.kind === "star") {
+      const node = nudgeSelectedStar;
+      if (!node) return;
+      setSelectedNode(node);
+      mapRef.current?.flyTo(node.id, 18);
+      setNudgeStatus(`Highlighted ${node.label}.`);
+      return;
+    }
+
+    if (nudgeTarget.kind === "book") {
+      const node = nudgeSelectedBook;
+      const bookKey = node?.meta?.bookKey as string | undefined;
+      const division = node?.meta?.division as string | undefined;
+      const testament = model?.nodes.find((candidate) => candidate.id === node?.parent)?.meta?.testament as string | undefined;
+      if (!node || !bookKey || !division || !testament) return;
+      setSelectedNode(node);
+      applyHierarchyFilter({ testament, division, bookKey });
+      mapRef.current?.setFocusedBook(node.id);
+      mapRef.current?.flyTo(node.id, 26);
+      setNudgeStatus(`Highlighted ${node.label}.`);
+      return;
+    }
+
+    if (nudgeSelectedArtwork) {
+      setSelectedNode({ id: nudgeSelectedArtwork.id, label: nudgeSelectedArtwork.title, level: -1 });
+      setShowConstellationArt(true);
+      mapRef.current?.flyTo(nudgeSelectedArtwork.id, 28);
+      setNudgeStatus(`Highlighted ${nudgeSelectedArtwork.title}.`);
+    }
+  }, [applyHierarchyFilter, model?.nodes, nudgeSelectedArtwork, nudgeSelectedBook, nudgeSelectedStar, nudgeTarget.id, nudgeTarget.kind]);
+
+  const handleNudgeKey = useCallback((key: string) => {
+    if (!nudgeTarget.id || !payload) return false;
+    const movementKeys = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+    const rotationKeys = new Set(["q", "Q", "e", "E", "[", "]"]);
+    const isMovement = movementKeys.has(key);
+    const isRotation = rotationKeys.has(key);
+    if (!isMovement && !isRotation) return false;
+    if (nudgeTarget.kind === "artwork" && nudgeTarget.mode === "position" && isRotation) return false;
+
+    if (nudgeTarget.kind === "artwork" && nudgeTarget.mode === "rotation") {
+      const delta = key === "ArrowLeft" || key === "ArrowDown" || key === "q" || key === "Q" || key === "["
+        ? -nudgeStepDeg
+        : nudgeStepDeg;
+      setConstellationConfig((current) => {
+        if (!current) return current;
+        const next = {
+          ...current,
+          constellations: current.constellations.map((item) => (
+            item.id === nudgeTarget.id
+              ? { ...item, rotationDeg: Number(((item.rotationDeg ?? 0) + delta).toFixed(4)) }
+              : item
+          )),
+        };
+        savePipelineConstellations(next);
+        return next;
+      });
+      setConstellationSource("custom");
+      setNudgeStatus(`Rotated ${nudgeSelectedArtwork?.title ?? nudgeTarget.id} ${delta > 0 ? "+" : ""}${delta.toFixed(2)} deg.`);
+      return true;
+    }
+
+    if (!isMovement) return false;
+
+    if (nudgeTarget.kind === "artwork") {
+      setConstellationConfig((current) => {
+        if (!current) return current;
+        const next = {
+          ...current,
+          constellations: current.constellations.map((item) => {
+            if (item.id !== nudgeTarget.id) return item;
+            const currentCenter = item.center?.length === 3
+              ? item.center as Vec3Tuple
+              : payload.arrangement[item.id]?.center ?? [0, ARRANGEMENT_RADIUS, 0] as Vec3Tuple;
+            return { ...item, center: nudgeSkyPosition(currentCenter, key, nudgeStepDeg) };
+          }),
+        };
+        savePipelineConstellations(next);
+        return next;
+      });
+      setConstellationSource("custom");
+      setNudgeStatus(`Moved ${nudgeSelectedArtwork?.title ?? nudgeTarget.id}.`);
+      return true;
+    }
+
+    const ids = nudgeTarget.kind === "book"
+      ? chapterNodes.filter((node) => node.parent === nudgeTarget.id).map((node) => node.id)
+      : [nudgeTarget.id];
+    if (ids.length === 0) return false;
+
+    setPayload((current) => {
+      if (!current) return current;
+      const arrangement = nudgeArrangementPositions(current.arrangement, ids, key, nudgeStepDeg);
+      const next = { ...current, arrangement };
+      savePipelineArrangement(arrangement);
+      return next;
+    });
+    setNudgeStatus(`Moved ${nudgeTarget.kind === "book" ? nudgeSelectedBook?.label ?? nudgeTarget.id : nudgeSelectedStar?.label ?? nudgeTarget.id}.`);
+    return true;
+  }, [chapterNodes, nudgeSelectedArtwork?.title, nudgeSelectedBook?.label, nudgeSelectedStar?.label, nudgeStepDeg, nudgeTarget.id, nudgeTarget.kind, payload]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, button")) return;
+      if (handleNudgeKey(event.key)) event.preventDefault();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleNudgeKey]);
 
   const handleSelectNode = useCallback((node: SceneNode) => {
     setSelectedNode(node);
@@ -1334,6 +1589,99 @@ export default function PreviewPage() {
                 {currentCamera && (
                     <CameraSnippet lon={currentCamera.lon} lat={currentCamera.lat} fov={currentCamera.fov} />
                 )}
+                <Toggle label="Edge panning" checked={edgePanEnabled} onChange={setEdgePanEnabled} />
+              </BuilderSection>
+
+              <BuilderSection label="Nudge">
+                <SelectRow
+                  label="Target"
+                  value={nudgeTarget.kind}
+                  onChange={(value) => handleNudgeTargetKindChange(value as NudgeTargetKind)}
+                  options={[
+                    { value: "artwork", label: "Artwork" },
+                    { value: "book", label: "Book stars" },
+                    { value: "star", label: "Chapter star" },
+                  ]}
+                />
+                {nudgeTarget.kind === "artwork" && (
+                  <>
+                    <SelectRow
+                      label="Artwork"
+                      value={nudgeTarget.id}
+                      onChange={handleNudgeTargetIdChange}
+                      options={[
+                        { value: "", label: "None" },
+                        ...visibleConstellationItems.map((item) => ({ value: item.id, label: item.title })),
+                      ]}
+                    />
+                    <SelectRow
+                      label="Mode"
+                      value={nudgeTarget.mode}
+                      onChange={(value) => setNudgeTarget((current) => ({ ...current, mode: value as NudgeMoveMode }))}
+                      options={[
+                        { value: "position", label: "Position" },
+                        { value: "rotation", label: "Rotation" },
+                      ]}
+                    />
+                  </>
+                )}
+                {nudgeTarget.kind === "book" && (
+                  <SelectRow
+                    label="Book"
+                    value={nudgeTarget.id}
+                    onChange={handleNudgeTargetIdChange}
+                    options={[
+                      { value: "", label: "None" },
+                      ...bookNodes.map((node) => ({ value: node.id, label: node.label })),
+                    ]}
+                  />
+                )}
+                {nudgeTarget.kind === "star" && (
+                  <SelectRow
+                    label="Star"
+                    value={nudgeTarget.id}
+                    onChange={handleNudgeTargetIdChange}
+                    options={[
+                      { value: "", label: "None" },
+                      ...chapterNodes.map((node) => ({ value: node.id, label: node.label })),
+                    ]}
+                  />
+                )}
+                <SliderRow
+                  label={nudgeTarget.mode === "rotation" ? "Rotation step" : "Move step"}
+                  value={nudgeStepDeg}
+                  min={0.05}
+                  max={3}
+                  step={0.05}
+                  onChange={setNudgeStepDeg}
+                />
+                <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2">
+                  <div className="flex items-center justify-between text-[10px] text-white/38">
+                    <span>Position</span>
+                    <span className="font-mono text-white/60">{formatVec(nudgePosition)}</span>
+                  </div>
+                  {nudgeTarget.kind === "artwork" && (
+                    <div className="mt-1 flex items-center justify-between text-[10px] text-white/38">
+                      <span>Rotation</span>
+                      <span className="font-mono text-white/60">{(nudgeSelectedArtwork?.rotationDeg ?? 0).toFixed(2)} deg</span>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleHighlightNudgeTarget}
+                    className="w-full rounded border border-sky-300/20 bg-sky-300/[0.08] px-2 py-1.5 text-[10px] text-sky-100/70 transition-colors hover:bg-sky-300/[0.14]"
+                  >
+                    Fly to target
+                  </button>
+                </div>
+                <p className="text-[10px] leading-relaxed text-white/28">
+                  {nudgeTarget.mode === "rotation" && nudgeTarget.kind === "artwork"
+                    ? "Use arrow keys to rotate the selected artwork."
+                    : "Use arrow keys to move the selected target across the sky."}
+                </p>
+                <p className="text-[10px] leading-relaxed text-white/34">{nudgeStatus}</p>
               </BuilderSection>
 
               <BuilderSection label="Status">
@@ -1352,6 +1700,12 @@ export default function PreviewPage() {
                   className="text-left text-xs text-white/45 transition-colors hover:text-white/70"
                 >
                   Export arrangement.json
+                </button>
+                <button
+                  onClick={() => constellationConfig && downloadJson(constellationConfig, "constellations.json")}
+                  className="text-left text-xs text-white/45 transition-colors hover:text-white/70"
+                >
+                  Export constellations.json
                 </button>
                 <Link href="/constellate" className="text-left text-xs text-white/45 transition-colors hover:text-white/70">
                   Return to Constellate
