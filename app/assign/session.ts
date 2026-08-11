@@ -1,6 +1,7 @@
 // Session serialisation — localStorage auto-save, export, import, snapshots.
 
-import type { SkyField } from "@project-skymap/library";
+import { DEFAULT_SKY_PARAMS } from "@project-skymap/library";
+import type { SkyField, StarArrangement, StarOutput } from "@project-skymap/library";
 import type { ShapeArchetype } from "./archetypes";
 import { CANON } from "./canon";
 
@@ -27,6 +28,11 @@ export interface Session {
   /** bookIndex → chosen shape archetype for that book. */
   bookArchetypes: Record<number, ShapeArchetype>;
   snapshots:   Snapshot[];
+  /** For imported arrangement editing, starId → immutable uploaded position. */
+  arrangementSlots?: Record<number, [number, number, number]>;
+  /** Non-chapter arrangement entries to carry through on export. */
+  arrangementBase?: StarArrangement;
+  arrangementSourceName?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +60,9 @@ interface Persisted {
     bookArchetypes?: Record<number, ShapeArchetype>;
     history?:       number[];
   }>;
+  arrangementSlots?: Record<number, [number, number, number]>;
+  arrangementBase?: StarArrangement;
+  arrangementSourceName?: string;
 }
 
 function convertSnapshotData(snap: Persisted["snapshots"][number]): Snapshot {
@@ -131,6 +140,9 @@ export function loadSession(): Session | null {
     return {
       skyField:  data.skyField,
       snapshots: (data.snapshots ?? []).map(convertSnapshotData),
+      arrangementSlots: data.arrangementSlots,
+      arrangementBase: data.arrangementBase,
+      arrangementSourceName: data.arrangementSourceName,
       ...parsed,
     };
   } catch {
@@ -173,6 +185,70 @@ export function clearSession(): void {
 
 export function createSession(skyField: SkyField): Session {
   return { skyField, assignments: {}, cursor: 0, undoStack: [], bookArchetypes: {}, snapshots: [] };
+}
+
+function positionToSyntheticStar(id: number, position: [number, number, number]): StarOutput {
+  const length = Math.hypot(position[0], position[1], position[2]) || 1;
+  const x3 = position[0] / length;
+  const y3 = position[1] / length;
+  const z3 = position[2] / length;
+  return {
+    id,
+    x: x3,
+    y: z3,
+    x3,
+    y3,
+    z3,
+    magnitude: 3.6,
+  };
+}
+
+export function createSessionFromArrangement(arrangement: StarArrangement, sourceName?: string): Session {
+  const assignments: Record<number, number> = {};
+  const arrangementSlots: Record<number, [number, number, number]> = {};
+  const stars: StarOutput[] = [];
+  const arrangementBase: StarArrangement = {};
+
+  let slotId = 0;
+  for (const chapter of CANON) {
+    const chapterId = `C:${chapter.bookKey}:${chapter.chapterNumber}`;
+    const entry = arrangement[chapterId];
+    if (!entry?.position) continue;
+
+    const position: [number, number, number] = [...entry.position];
+    assignments[chapter.globalIndex] = slotId;
+    arrangementSlots[slotId] = position;
+    stars.push(positionToSyntheticStar(slotId, position));
+    slotId += 1;
+  }
+
+  for (const [id, entry] of Object.entries(arrangement)) {
+    if (!id.startsWith("C:")) arrangementBase[id] = entry;
+  }
+
+  if (stars.length === 0) throw new Error("Arrangement has no chapter positions.");
+
+  return {
+    skyField: {
+      version: 2,
+      params: DEFAULT_SKY_PARAMS,
+      stars,
+      metrics: {
+        clusterDominanceScore: 0,
+        nearestNeighbourCV: 0,
+        maxVoidRadius: 0,
+        edgeGradientRatio: 0,
+      },
+    },
+    assignments,
+    cursor: Math.min(CANON.length, stars.length),
+    undoStack: Object.keys(assignments).map(Number),
+    bookArchetypes: {},
+    snapshots: [],
+    arrangementSlots,
+    arrangementBase,
+    arrangementSourceName: sourceName,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -247,8 +323,17 @@ export async function importSession(file: File): Promise<Session> {
   return {
     skyField:  data.skyField,
     snapshots: (data.snapshots ?? []).map(convertSnapshotData),
+    arrangementSlots: data.arrangementSlots,
+    arrangementBase: data.arrangementBase,
+    arrangementSourceName: data.arrangementSourceName,
     ...parsed,
   };
+}
+
+export async function importArrangementAsSession(file: File): Promise<Session> {
+  const text = await file.text();
+  const data = JSON.parse(text) as StarArrangement;
+  return createSessionFromArrangement(data, file.name);
 }
 
 /** Load just a SkyField (from the generator's export). */

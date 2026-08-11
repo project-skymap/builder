@@ -12,13 +12,13 @@
         "C:GEN:50"
       ],
       "center": [
-        -1211.7886431129523,
-        988.9303831159607,
-        1246.4288915829052
+        -1239.8874389310613,
+        926.866711157206,
+        1266.3321991205944
       ],
-      "radius": 480,
+      "radius": 520,
       "rotationDeg": 162,
-      "opacity": 0.015,
+      "opacity": 0.0075,
       "blend": "additive",
       "zBias": 2,
       "fade": {
@@ -30,32 +30,32 @@
       },
       "lineSegments": [
         {
-          "from": "C:GEN:15",
-          "to": "C:GEN:2",
+          "from": "C:GEN:37",
+          "to": "C:GEN:31",
           "weight": "normal",
           "color": "#6eaaff"
         },
         {
-          "from": "C:GEN:19",
-          "to": "C:GEN:15",
+          "from": "C:GEN:37",
+          "to": "C:GEN:45",
           "weight": "normal",
           "color": "#6eaaff"
         },
         {
-          "from": "C:GEN:15",
-          "to": "C:GEN:25",
+          "from": "C:GEN:37",
+          "to": "C:GEN:7",
           "weight": "normal",
           "color": "#6eaaff"
         },
         {
-          "from": "C:GEN:25",
-          "to": "C:GEN:26",
+          "from": "C:GEN:14",
+          "to": "C:GEN:7",
           "weight": "normal",
           "color": "#6eaaff"
         },
         {
-          "from": "C:GEN:25",
-          "to": "C:GEN:47",
+          "from": "C:GEN:7",
+          "to": "C:GEN:4",
           "weight": "normal",
           "color": "#6eaaff"
         }

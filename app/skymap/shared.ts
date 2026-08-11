@@ -591,7 +591,7 @@ export function computeBookRegions(arrangement: StarArrangement): BookRegions {
 
 export function buildAssignedScene(session: Session): { model: SceneModel; arrangement: StarArrangement } {
   const nodes: SceneNode[] = [];
-  const arrangement: StarArrangement = {};
+  const arrangement: StarArrangement = { ...(session.arrangementBase ?? {}) };
   const addedT = new Set<string>();
   const addedD = new Set<string>();
   const addedB = new Set<string>();
@@ -630,12 +630,15 @@ export function buildAssignedScene(session: Session): { model: SceneModel; arran
       meta: { bookKey: chapter.bookKey, chapter: chapter.chapterNumber },
     });
 
-    arrangement[cid] = { position: buildArrangementPositionFromStar(star) };
+    const slotPosition = session.arrangementSlots?.[starId];
+    arrangement[cid] = { position: slotPosition ? [...slotPosition] : buildArrangementPositionFromStar(star) };
   }
 
   return {
     model: { nodes },
-    arrangement: optimizeArrangementForVisibility(arrangement, getDefaultHorizonTheme()),
+    arrangement: session.arrangementSlots
+      ? arrangement
+      : optimizeArrangementForVisibility(arrangement, getDefaultHorizonTheme()),
   };
 }
 

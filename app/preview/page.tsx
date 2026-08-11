@@ -72,7 +72,7 @@ type ZenithHorizonTuning = {
 };
 
 type Vec3Tuple = [number, number, number];
-type NudgeTargetKind = "artwork" | "book" | "star";
+type NudgeTargetKind = "artwork" | "book" | "bookObjects" | "star";
 type NudgeMoveMode = "position" | "rotation";
 type NudgeTarget = {
   kind: NudgeTargetKind;
@@ -120,6 +120,16 @@ function getNodeChapter(node: SceneNode | null): Chapter | null {
 
 function getChapterNodeId(chapter: Chapter): string {
   return `C:${chapter.bookKey}:${chapter.chapterNumber}`;
+}
+
+function getArtworkBookKey(item: { anchors?: unknown }): string | null {
+  const anchors = Array.isArray(item.anchors) ? item.anchors : [];
+  for (const anchor of anchors) {
+    if (typeof anchor !== "string") continue;
+    const match = anchor.match(/^C:([^:]+):\d+$/);
+    if (match?.[1]) return match[1];
+  }
+  return null;
 }
 
 function getYesFilterMatch(guest: Chapter, answer: Chapter): FilterMatch {
@@ -549,11 +559,19 @@ export default function PreviewPage() {
     () => visibleConstellationItems.find((item) => item.id === nudgeTarget.id) ?? null,
     [nudgeTarget.id, visibleConstellationItems],
   );
+  const nudgeSelectedBookArtwork = useMemo(() => {
+    const bookKey = nudgeSelectedBook?.meta?.bookKey as string | undefined;
+    if (!bookKey) return null;
+    return visibleConstellationItems.find((item) => getArtworkBookKey(item) === bookKey) ?? null;
+  }, [nudgeSelectedBook, visibleConstellationItems]);
   const nudgePosition = useMemo(() => {
     if (nudgeTarget.kind === "artwork") return nudgeSelectedArtwork?.center?.length === 3 ? nudgeSelectedArtwork.center as Vec3Tuple : null;
+    if (nudgeTarget.kind === "bookObjects") {
+      return nudgeSelectedBookArtwork?.center?.length === 3 ? nudgeSelectedBookArtwork.center as Vec3Tuple : null;
+    }
     if (!payload) return null;
     return payload.arrangement[nudgeTarget.id]?.position ?? null;
-  }, [nudgeSelectedArtwork, nudgeTarget.id, nudgeTarget.kind, payload]);
+  }, [nudgeSelectedArtwork, nudgeSelectedBookArtwork, nudgeTarget.id, nudgeTarget.kind, payload]);
 
   useEffect(() => {
     if (!filterTestament) {
@@ -895,7 +913,7 @@ export default function PreviewPage() {
       return;
     }
 
-    if (nudgeTarget.kind === "book") {
+    if (nudgeTarget.kind === "book" || nudgeTarget.kind === "bookObjects") {
       const node = nudgeSelectedBook;
       const bookKey = node?.meta?.bookKey as string | undefined;
       const division = node?.meta?.division as string | undefined;
@@ -903,9 +921,12 @@ export default function PreviewPage() {
       if (!node || !bookKey || !division || !testament) return;
       setSelectedNode(node);
       applyHierarchyFilter({ testament, division, bookKey });
+      if (nudgeTarget.kind === "bookObjects") setShowConstellationArt(true);
       mapRef.current?.setFocusedBook(node.id);
       mapRef.current?.flyTo(node.id, 26);
-      setNudgeStatus(`Highlighted ${node.label}.`);
+      setNudgeStatus(nudgeTarget.kind === "bookObjects"
+        ? `Highlighted ${node.label} stars and artwork.`
+        : `Highlighted ${node.label}.`);
       return;
     }
 
@@ -971,6 +992,41 @@ export default function PreviewPage() {
       return true;
     }
 
+    if (nudgeTarget.kind === "bookObjects") {
+      const ids = chapterNodes.filter((node) => node.parent === nudgeTarget.id).map((node) => node.id);
+      if (ids.length === 0) return false;
+
+      setPayload((current) => {
+        if (!current) return current;
+        const arrangement = nudgeArrangementPositions(current.arrangement, ids, key, nudgeStepDeg);
+        const next = { ...current, arrangement };
+        savePipelineArrangement(arrangement);
+        return next;
+      });
+
+      if (nudgeSelectedBookArtwork) {
+        setConstellationConfig((current) => {
+          if (!current) return current;
+          const next = {
+            ...current,
+            constellations: current.constellations.map((item) => {
+              if (item.id !== nudgeSelectedBookArtwork.id) return item;
+              const currentCenter = item.center?.length === 3
+                ? item.center as Vec3Tuple
+                : payload.arrangement[item.id]?.center ?? [0, ARRANGEMENT_RADIUS, 0] as Vec3Tuple;
+              return { ...item, center: nudgeSkyPosition(currentCenter, key, nudgeStepDeg) };
+            }),
+          };
+          savePipelineConstellations(next);
+          return next;
+        });
+        setConstellationSource("custom");
+      }
+
+      setNudgeStatus(`Moved ${nudgeSelectedBook?.label ?? nudgeTarget.id} stars${nudgeSelectedBookArtwork ? " and artwork" : ""}.`);
+      return true;
+    }
+
     const ids = nudgeTarget.kind === "book"
       ? chapterNodes.filter((node) => node.parent === nudgeTarget.id).map((node) => node.id)
       : [nudgeTarget.id];
@@ -985,7 +1041,7 @@ export default function PreviewPage() {
     });
     setNudgeStatus(`Moved ${nudgeTarget.kind === "book" ? nudgeSelectedBook?.label ?? nudgeTarget.id : nudgeSelectedStar?.label ?? nudgeTarget.id}.`);
     return true;
-  }, [chapterNodes, nudgeSelectedArtwork?.title, nudgeSelectedBook?.label, nudgeSelectedStar?.label, nudgeStepDeg, nudgeTarget.id, nudgeTarget.kind, payload]);
+  }, [chapterNodes, nudgeSelectedArtwork?.title, nudgeSelectedBook?.label, nudgeSelectedBookArtwork, nudgeSelectedStar?.label, nudgeStepDeg, nudgeTarget.id, nudgeTarget.kind, payload]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1600,6 +1656,7 @@ export default function PreviewPage() {
                   options={[
                     { value: "artwork", label: "Artwork" },
                     { value: "book", label: "Book stars" },
+                    { value: "bookObjects", label: "Book stars + artwork" },
                     { value: "star", label: "Chapter star" },
                   ]}
                 />
@@ -1625,7 +1682,7 @@ export default function PreviewPage() {
                     />
                   </>
                 )}
-                {nudgeTarget.kind === "book" && (
+                {(nudgeTarget.kind === "book" || nudgeTarget.kind === "bookObjects") && (
                   <SelectRow
                     label="Book"
                     value={nudgeTarget.id}
@@ -1666,6 +1723,14 @@ export default function PreviewPage() {
                       <span className="font-mono text-white/60">{(nudgeSelectedArtwork?.rotationDeg ?? 0).toFixed(2)} deg</span>
                     </div>
                   )}
+                  {nudgeTarget.kind === "bookObjects" && (
+                    <div className="mt-1 flex items-center justify-between text-[10px] text-white/38">
+                      <span>Artwork</span>
+                      <span className="truncate pl-3 text-right text-white/60">
+                        {nudgeSelectedBookArtwork?.title ?? "none"}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <button
@@ -1679,7 +1744,9 @@ export default function PreviewPage() {
                 <p className="text-[10px] leading-relaxed text-white/28">
                   {nudgeTarget.mode === "rotation" && nudgeTarget.kind === "artwork"
                     ? "Use arrow keys to rotate the selected artwork."
-                    : "Use arrow keys to move the selected target across the sky."}
+                    : nudgeTarget.kind === "bookObjects"
+                      ? "Use arrow keys to move the selected book stars and matching artwork together."
+                      : "Use arrow keys to move the selected target across the sky."}
                 </p>
                 <p className="text-[10px] leading-relaxed text-white/34">{nudgeStatus}</p>
               </BuilderSection>

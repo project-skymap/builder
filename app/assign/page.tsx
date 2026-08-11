@@ -7,7 +7,7 @@ import { StarMap } from "@project-skymap/library";
 import type { Session } from "./session";
 import {
   loadSession, saveSession, createSession,
-  exportSession, exportAssignments, importSession, importSkyField, consumeGeneratedSkyField,
+  exportSession, exportAssignments, importSession, importSkyField, importArrangementAsSession, consumeGeneratedSkyField,
 } from "./session";
 import { CANON, BOOKS } from "./canon";
 import type { Chapter } from "./canon";
@@ -49,10 +49,16 @@ const VERSE_COUNTS = buildVerseCounts();
 const TOTAL_CHAPTERS = CANON.length;
 const MAX_VERSE_COUNT = Math.max(...VERSE_COUNTS);
 const ASSIGNED_LABEL_ZOOM_THRESHOLD = 1.65;
+const ASSIGN_MAX_ZOOM = 14;
+const FIND_OPEN_STAR_ZOOM = 7;
 const TRIANGULATION_MAX_EDGE_FACTOR = 2.35;
 const SKY_FIELD_RENDER_RADIUS = 1.25;
 const SKY_FIELD_FADE_START = SKY_FIELD_RENDER_RADIUS * 0.88;
 const DEFAULT_VISIBILITY_HORIZON_GUIDE = getDefaultVisibilityHorizonGuide();
+
+function chapterShortLabel(chapter: Chapter): string {
+  return `${chapter.bookKey} ${chapter.chapterNumber}`;
+}
 
 function assignedStarRadius(verseCount: number): number {
   const normalized = Math.max(0, Math.min(1, verseCount / MAX_VERSE_COUNT));
@@ -417,6 +423,8 @@ export default function BuilderPage() {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [showBookTriangulation, setShowBookTriangulation] = useState(true);
   const [showVisibilityGuides, setShowVisibilityGuides] = useState(true);
+  const [showChapterLabels, setShowChapterLabels] = useState(true);
+  const [openStarSearchIndex, setOpenStarSearchIndex] = useState(0);
 
   // 3D selection (Assign mode only)
   const [selectedNode,          setSelectedNode]          = useState<SceneNode | null>(null);
@@ -470,6 +478,13 @@ export default function BuilderPage() {
     }
     return m;
   }, [session]);
+
+  const openStars = useMemo(
+    () => (session?.skyField.stars ?? [])
+      .filter(star => !starToChapter.has(star.id))
+      .sort((a, b) => a.id - b.id),
+    [session, starToChapter],
+  );
 
   const assignedChapters = useMemo(
     () => new Set<number>(Object.keys(session?.assignments ?? {}).map(Number)),
@@ -609,6 +624,21 @@ export default function BuilderPage() {
     } catch { /* invalid */ }
   }, []);
 
+  const handleImportArrangementSession = useCallback(async (file: File) => {
+    try {
+      const nextSession = await importArrangementAsSession(file);
+      setSession(nextSession);
+      setActiveTab("assign");
+      setSelectedNode(null);
+      setSelectedMarkerStarId(null);
+      setPopupAnchor(null);
+      setArmedChapterIndex(null);
+      setSessionStatus(`Loaded editable arrangement from ${file.name}.`);
+    } catch {
+      setSessionStatus(`Could not load arrangement from ${file.name}.`);
+    }
+  }, []);
+
   const handleImportSkyField = useCallback(async (file: File) => {
     try {
       setSession(createSession(await importSkyField(file)));
@@ -715,13 +745,13 @@ export default function BuilderPage() {
     });
   }, [session]);
 
-  const focusSkyStar = useCallback((star: StarOutput) => {
+  const focusSkyStar = useCallback((star: StarOutput, zoom = 1.45) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const baseRadius = Math.min(width, height) / 2 - 12;
-    zoomRef.current = 1.45;
+    zoomRef.current = Math.max(0.3, Math.min(ASSIGN_MAX_ZOOM, zoom));
     const radius = baseRadius * zoomRef.current;
     const cos = Math.cos(spinRef.current);
     const sin = Math.sin(spinRef.current);
@@ -729,6 +759,33 @@ export default function BuilderPage() {
     const rz = projectSkyCoordinate(-star.x * sin + star.y * cos);
     panRef.current = { x: -rx * radius, y: -rz * radius };
   }, []);
+
+  const handleFindNextOpenStar = useCallback(() => {
+    if (openStars.length === 0) {
+      setSessionStatus("No open stars remain.");
+      return;
+    }
+
+    const selectedOpenIndex = selectedMarkerStarId === null
+      ? -1
+      : openStars.findIndex(star => star.id === selectedMarkerStarId);
+    const nextIndex = selectedOpenIndex >= 0
+      ? (selectedOpenIndex + 1) % openStars.length
+      : openStarSearchIndex % openStars.length;
+    const star = openStars[nextIndex];
+    if (!star) return;
+
+    focusSkyStar(star, FIND_OPEN_STAR_ZOOM);
+    setSelectedMarkerStarId(star.id);
+    setSelectedNode(null);
+    setPopupAnchor(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      return { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 };
+    });
+    setOpenStarSearchIndex((nextIndex + 1) % openStars.length);
+    setSessionStatus(`Focused open star #${star.id}.`);
+  }, [focusSkyStar, openStarSearchIndex, openStars, selectedMarkerStarId]);
 
   const handleArmReassign = useCallback((chapterGlobalIndex: number) => {
     const chapter = CANON[chapterGlobalIndex];
@@ -761,7 +818,7 @@ export default function BuilderPage() {
 
     setSelectedNode({
       id: nid.chapter(chapter.bookKey, chapter.chapterNumber),
-      label: `${chapter.bookName} ${chapter.chapterNumber}`,
+      label: chapterShortLabel(chapter),
       level: 3,
       parent: nid.book(chapter.bookKey),
     });
@@ -844,7 +901,7 @@ export default function BuilderPage() {
       if (!chapter) return;
       setSelectedNode({
         id: nid.chapter(chapter.bookKey, chapter.chapterNumber),
-        label: `${chapter.bookName} ${chapter.chapterNumber}`,
+        label: chapterShortLabel(chapter),
         level: 3,
         parent: nid.book(chapter.bookKey),
       });
@@ -860,7 +917,7 @@ export default function BuilderPage() {
   const handleCanvasWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     const factor = e.deltaY > 0 ? 0.93 : 1.07;
-    zoomRef.current = Math.max(0.3, Math.min(6, zoomRef.current * factor));
+    zoomRef.current = Math.max(0.3, Math.min(ASSIGN_MAX_ZOOM, zoomRef.current * factor));
   }, []);
 
   const handleCanvasDoubleClick = useCallback(() => {
@@ -891,7 +948,7 @@ export default function BuilderPage() {
       const cy = height / 2;
       const baseRadius = Math.min(width, height) / 2 - 12;
       const radius = baseRadius * zoomRef.current;
-      const showAssignedLabels = zoomRef.current >= ASSIGNED_LABEL_ZOOM_THRESHOLD;
+      const showAssignedLabels = showChapterLabels && zoomRef.current >= ASSIGNED_LABEL_ZOOM_THRESHOLD;
       const spin = spinRef.current;
       const pan = panRef.current;
       const scx = cx + pan.x;
@@ -994,8 +1051,8 @@ export default function BuilderPage() {
             ctx.stroke();
           }
 
-          if (chapter && (showAssignedLabels || isSelected || isArmed)) {
-            const label = `${chapter.bookName} ${chapter.chapterNumber}`;
+          if (chapter && showChapterLabels && (showAssignedLabels || isSelected || isArmed)) {
+            const label = chapterShortLabel(chapter);
             ctx.font = isSelected || isArmed ? "12px Arial, Helvetica, sans-serif" : "11px Arial, Helvetica, sans-serif";
             const textWidth = ctx.measureText(label).width;
             const labelX = sx + chapterRadius + 7;
@@ -1044,7 +1101,7 @@ export default function BuilderPage() {
 
     draw();
     return () => cancelAnimationFrame(animRef.current);
-  }, [activeTab, armedChapterIndex, selectedChapterIndex, selectedMarkerStarId, session, showBookTriangulation, showVisibilityGuides, starToChapter, triangulationBooks]);
+  }, [activeTab, armedChapterIndex, selectedChapterIndex, selectedMarkerStarId, session, showBookTriangulation, showChapterLabels, showVisibilityGuides, starToChapter, triangulationBooks]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1085,10 +1142,12 @@ export default function BuilderPage() {
             !hasSkyField ? (
               <BuilderSection label="Assign">
                 <p className="text-[10px] leading-relaxed text-white/20">
-                  Load a sky field to begin assigning chapters.
+                  Load a generated sky field for a fresh assignment, or load an arrangement to remap an existing config.
                 </p>
                 <FileInput label="Load sky field" filename="skyfield.json"
                            onChange={handleImportSkyField} />
+                <FileInput label="Load arrangement" filename="arrangement.json"
+                           onChange={handleImportArrangementSession} />
                 <FileInput label="Resume session" filename="skymap-session.json"
                            onChange={handleImportSession} />
               </BuilderSection>
@@ -1114,6 +1173,13 @@ export default function BuilderPage() {
                       <span>{totalAssigned.toLocaleString()} placed</span>
                     </div>
                   </div>
+                  <button
+                    onClick={handleFindNextOpenStar}
+                    disabled={openStars.length === 0}
+                    className="mt-2 text-left text-xs text-amber-200/60 transition-colors hover:text-amber-100 disabled:cursor-not-allowed disabled:text-white/18"
+                  >
+                    Fly to next open star
+                  </button>
                 </BuilderSection>
 
                 <BuilderSection label="Coverage">
@@ -1196,6 +1262,18 @@ export default function BuilderPage() {
                 </BuilderSection>
 
                 <BuilderSection label="Sky Controls">
+                  <label className="flex items-center justify-between text-xs text-white/52">
+                    <span>Show chapter labels</span>
+                    <input
+                      type="checkbox"
+                      checked={showChapterLabels}
+                      onChange={e => setShowChapterLabels(e.target.checked)}
+                      className="accent-amber-400"
+                    />
+                  </label>
+                  <p className="text-[10px] leading-relaxed text-white/22">
+                    Hides chapter text in the assignment canvas while keeping star markers and selection rings visible.
+                  </p>
                   <label className="flex items-center justify-between text-xs text-white/52">
                   <span>Show visibility guide</span>
                     <input
@@ -1334,6 +1412,8 @@ export default function BuilderPage() {
                              onChange={handleImportSession} />
                   <FileInput label="Load new sky field" filename="skyfield.json"
                              onChange={handleImportSkyField} />
+                  <FileInput label="Load arrangement" filename="arrangement.json"
+                             onChange={handleImportArrangementSession} />
                 </BuilderSection>
 
                 <BuilderSection label="Export">
@@ -1389,7 +1469,7 @@ export default function BuilderPage() {
                 Drag to pan. Shift-drag to spin. Scroll to zoom. Double-click to reset.
               </p>
               <p className="mt-1 text-[10px] text-white/34">
-                Chapter labels appear from {ASSIGNED_LABEL_ZOOM_THRESHOLD.toFixed(2)}× zoom.
+                Chapter labels appear from {ASSIGNED_LABEL_ZOOM_THRESHOLD.toFixed(2)}× zoom when enabled. Max zoom {ASSIGN_MAX_ZOOM}×.
               </p>
             </div>
           </>
