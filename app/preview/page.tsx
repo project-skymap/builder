@@ -79,6 +79,7 @@ type NudgeTarget = {
   id: string;
   mode: NudgeMoveMode;
 };
+type ReorderPickMode = "source" | "target";
 
 const DEFAULT_IMMERSIVE_TUNING: ImmersiveTuning = {
   starScale: 0.68,
@@ -288,6 +289,24 @@ function nudgeArrangementPositions(
   return next;
 }
 
+function swapChapterPositions(arrangement: StarArrangement, sourceId: string, targetId: string): StarArrangement | null {
+  const sourcePosition = arrangement[sourceId]?.position;
+  const targetPosition = arrangement[targetId]?.position;
+  if (!sourcePosition || !targetPosition) return null;
+
+  return {
+    ...arrangement,
+    [sourceId]: {
+      ...arrangement[sourceId],
+      position: targetPosition,
+    },
+    [targetId]: {
+      ...arrangement[targetId],
+      position: sourcePosition,
+    },
+  };
+}
+
 function formatVec(position: Vec3Tuple | null | undefined): string {
   if (!position) return "none";
   return position.map((value) => value.toFixed(1)).join(", ");
@@ -450,6 +469,11 @@ export default function PreviewPage() {
   const [nudgeTarget, setNudgeTarget] = useState<NudgeTarget>({ kind: "artwork", id: "", mode: "position" });
   const [nudgeStepDeg, setNudgeStepDeg] = useState(0.25);
   const [nudgeStatus, setNudgeStatus] = useState("No nudge target selected.");
+  const [reorderSourceId, setReorderSourceId] = useState("");
+  const [reorderTargetId, setReorderTargetId] = useState("");
+  const [reorderPickMode, setReorderPickMode] = useState<ReorderPickMode>("source");
+  const [reorderAllowCrossBook, setReorderAllowCrossBook] = useState(false);
+  const [reorderStatus, setReorderStatus] = useState("Click a chapter star to set the source.");
 
   useEffect(() => {
     const saved = loadPreviewHorizonSettings();
@@ -572,6 +596,28 @@ export default function PreviewPage() {
     if (!payload) return null;
     return payload.arrangement[nudgeTarget.id]?.position ?? null;
   }, [nudgeSelectedArtwork, nudgeSelectedBookArtwork, nudgeTarget.id, nudgeTarget.kind, payload]);
+  const reorderSourceNode = useMemo(
+    () => chapterNodes.find((node) => node.id === reorderSourceId) ?? null,
+    [chapterNodes, reorderSourceId],
+  );
+  const reorderTargetNode = useMemo(
+    () => chapterNodes.find((node) => node.id === reorderTargetId) ?? null,
+    [chapterNodes, reorderTargetId],
+  );
+  const reorderSourceChapter = useMemo(() => getNodeChapter(reorderSourceNode), [reorderSourceNode]);
+  const reorderTargetChapter = useMemo(() => getNodeChapter(reorderTargetNode), [reorderTargetNode]);
+  const reorderTargetOptions = useMemo(() => {
+    const sourceBookKey = reorderSourceChapter?.bookKey;
+    return chapterNodes
+      .filter((node) => {
+        if (node.id === reorderSourceId) return false;
+        if (reorderAllowCrossBook || !sourceBookKey) return true;
+        return getNodeChapter(node)?.bookKey === sourceBookKey;
+      })
+      .map((node) => ({ value: node.id, label: node.label }));
+  }, [chapterNodes, reorderAllowCrossBook, reorderSourceChapter?.bookKey, reorderSourceId]);
+  const reorderSourcePosition = payload?.arrangement[reorderSourceId]?.position ?? null;
+  const reorderTargetPosition = payload?.arrangement[reorderTargetId]?.position ?? null;
 
   useEffect(() => {
     if (!filterTestament) {
@@ -1053,16 +1099,6 @@ export default function PreviewPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleNudgeKey]);
 
-  const handleSelectNode = useCallback((node: SceneNode) => {
-    setSelectedNode(node);
-    const chapter = getNodeChapter(node);
-    setFilterTestStatus(
-      chapter
-        ? `Selected guest star: ${chapterTitle(chapter)}.`
-        : "Selected object is not a chapter star.",
-    );
-  }, []);
-
   const handleApplyYesNarrowing = useCallback(() => {
     if (!selectedChapter) {
       setFilterTestStatus("Select a chapter star before applying Yes narrowing.");
@@ -1087,6 +1123,108 @@ export default function PreviewPage() {
   const handleFlyToAnswerStar = useCallback(() => {
     mapRef.current?.flyTo(getChapterNodeId(answerChapter), 18);
   }, [answerChapter]);
+
+  const handleReorderChapterPick = useCallback((node: SceneNode, chapter: Chapter) => {
+    if (reorderPickMode === "source") {
+      setReorderSourceId(node.id);
+      setReorderTargetId("");
+      setReorderPickMode("target");
+      setReorderStatus(`Source set to ${chapterTitle(chapter)}. Click or choose the target chapter.`);
+      return;
+    }
+
+    if (node.id === reorderSourceId) {
+      setReorderStatus("Target must be a different chapter.");
+      return;
+    }
+
+    if (!reorderAllowCrossBook && reorderSourceChapter && chapter.bookKey !== reorderSourceChapter.bookKey) {
+      setReorderStatus(`Target must be in ${reorderSourceChapter.bookName}, or enable cross-book swaps.`);
+      return;
+    }
+
+    setReorderTargetId(node.id);
+    setReorderStatus(`Target set to ${chapterTitle(chapter)}. Apply swap when ready.`);
+  }, [reorderAllowCrossBook, reorderPickMode, reorderSourceChapter, reorderSourceId]);
+
+  const handleUseSelectedForReorder = useCallback((mode: ReorderPickMode) => {
+    if (!selectedNode || !selectedChapter) {
+      setReorderStatus("Select a chapter star first.");
+      return;
+    }
+
+    if (mode === "source") {
+      setReorderSourceId(selectedNode.id);
+      setReorderTargetId("");
+      setReorderPickMode("target");
+      setReorderStatus(`Source set to ${chapterTitle(selectedChapter)}. Click or choose the target chapter.`);
+      return;
+    }
+
+    if (selectedNode.id === reorderSourceId) {
+      setReorderStatus("Target must be a different chapter.");
+      return;
+    }
+
+    if (!reorderAllowCrossBook && reorderSourceChapter && selectedChapter.bookKey !== reorderSourceChapter.bookKey) {
+      setReorderStatus(`Target must be in ${reorderSourceChapter.bookName}, or enable cross-book swaps.`);
+      return;
+    }
+
+    setReorderTargetId(selectedNode.id);
+    setReorderPickMode("target");
+    setReorderStatus(`Target set to ${chapterTitle(selectedChapter)}. Apply swap when ready.`);
+  }, [reorderAllowCrossBook, reorderSourceChapter, reorderSourceId, selectedChapter, selectedNode]);
+
+  const handleApplyReorderSwap = useCallback(() => {
+    if (!payload || !reorderSourceId || !reorderTargetId) {
+      setReorderStatus("Choose a source and target chapter first.");
+      return;
+    }
+    if (reorderSourceId === reorderTargetId) {
+      setReorderStatus("Source and target must be different chapters.");
+      return;
+    }
+    if (!reorderAllowCrossBook && reorderSourceChapter && reorderTargetChapter && reorderSourceChapter.bookKey !== reorderTargetChapter.bookKey) {
+      setReorderStatus(`Target must be in ${reorderSourceChapter.bookName}, or enable cross-book swaps.`);
+      return;
+    }
+    if (!payload.arrangement[reorderSourceId]?.position || !payload.arrangement[reorderTargetId]?.position) {
+      setReorderStatus("Could not swap because one chapter is missing a position.");
+      return;
+    }
+
+    setPayload((current) => {
+      if (!current) return current;
+      const arrangement = swapChapterPositions(current.arrangement, reorderSourceId, reorderTargetId);
+      if (!arrangement) return current;
+      savePipelineArrangement(arrangement);
+      return { ...current, arrangement };
+    });
+
+    const sourceLabel = reorderSourceChapter ? chapterTitle(reorderSourceChapter) : reorderSourceId;
+    const targetLabel = reorderTargetChapter ? chapterTitle(reorderTargetChapter) : reorderTargetId;
+    setStatus(`Reordered ${sourceLabel} and ${targetLabel}.`);
+    setReorderStatus(`Swapped coordinates: ${sourceLabel} <-> ${targetLabel}.`);
+  }, [payload, reorderAllowCrossBook, reorderSourceChapter, reorderSourceId, reorderTargetChapter, reorderTargetId]);
+
+  const handleClearReorder = useCallback(() => {
+    setReorderSourceId("");
+    setReorderTargetId("");
+    setReorderPickMode("source");
+    setReorderStatus("Click a chapter star to set the source.");
+  }, []);
+
+  const handleSelectNode = useCallback((node: SceneNode) => {
+    setSelectedNode(node);
+    const chapter = getNodeChapter(node);
+    setFilterTestStatus(
+      chapter
+        ? `Selected guest star: ${chapterTitle(chapter)}.`
+        : "Selected object is not a chapter star.",
+    );
+    if (chapter) handleReorderChapterPick(node, chapter);
+  }, [handleReorderChapterPick]);
 
   const handleRefreshViewport = useCallback(() => {
     requestAnimationFrame(() => {
@@ -1258,6 +1396,131 @@ export default function PreviewPage() {
                     <p className="text-[10px] text-white/25">Click a star in the sky to make it the guest star.</p>
                   )}
                 </div>
+              </BuilderSection>
+
+              <BuilderSection label="Reorder">
+                <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2">
+                  <div className="flex items-center justify-between text-xs text-white/48">
+                    <span>Click assigns</span>
+                    <span className="text-white/72">{reorderPickMode === "source" ? "Source" : "Target"}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-white/35">
+                    <span>Source</span>
+                    <span className="truncate pl-3 text-right text-white/62">
+                      {reorderSourceChapter ? chapterTitle(reorderSourceChapter) : "none"}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-white/35">
+                    <span>Target</span>
+                    <span className="truncate pl-3 text-right text-white/62">
+                      {reorderTargetChapter ? chapterTitle(reorderTargetChapter) : "none"}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReorderPickMode("source")}
+                    className={`rounded border px-2 py-1.5 text-[10px] transition-colors ${
+                      reorderPickMode === "source"
+                        ? "border-indigo-300/30 bg-indigo-300/[0.12] text-indigo-100/75"
+                        : "border-white/10 bg-white/[0.05] text-white/55 hover:bg-white/[0.09] hover:text-white/75"
+                    }`}
+                  >
+                    Pick source
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReorderPickMode("target")}
+                    className={`rounded border px-2 py-1.5 text-[10px] transition-colors ${
+                      reorderPickMode === "target"
+                        ? "border-indigo-300/30 bg-indigo-300/[0.12] text-indigo-100/75"
+                        : "border-white/10 bg-white/[0.05] text-white/55 hover:bg-white/[0.09] hover:text-white/75"
+                    }`}
+                  >
+                    Pick target
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleUseSelectedForReorder("source")}
+                    disabled={!selectedChapter}
+                    className="rounded border border-sky-300/20 bg-sky-300/[0.08] px-2 py-1.5 text-[10px] text-sky-100/70 transition-colors hover:bg-sky-300/[0.14] disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    Selected to source
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUseSelectedForReorder("target")}
+                    disabled={!selectedChapter || !reorderSourceId}
+                    className="rounded border border-sky-300/20 bg-sky-300/[0.08] px-2 py-1.5 text-[10px] text-sky-100/70 transition-colors hover:bg-sky-300/[0.14] disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    Selected to target
+                  </button>
+                </div>
+                <SelectRow
+                  label="Source"
+                  value={reorderSourceId}
+                  onChange={(value) => {
+                    setReorderSourceId(value);
+                    setReorderTargetId("");
+                    setReorderPickMode("target");
+                    setReorderStatus(value ? "Source changed. Choose a target chapter." : "Click a chapter star to set the source.");
+                  }}
+                  options={[
+                    { value: "", label: "None" },
+                    ...chapterNodes.map((node) => ({ value: node.id, label: node.label })),
+                  ]}
+                />
+                <SelectRow
+                  label="Target"
+                  value={reorderTargetId}
+                  onChange={(value) => {
+                    setReorderTargetId(value);
+                    setReorderPickMode("target");
+                    setReorderStatus(value ? "Target changed. Apply swap when ready." : "Choose a target chapter.");
+                  }}
+                  options={[
+                    { value: "", label: "None" },
+                    ...reorderTargetOptions,
+                  ]}
+                />
+                <Toggle label="Allow cross-book swap" checked={reorderAllowCrossBook} onChange={(checked) => {
+                  setReorderAllowCrossBook(checked);
+                  if (!checked && reorderSourceChapter && reorderTargetChapter && reorderSourceChapter.bookKey !== reorderTargetChapter.bookKey) {
+                    setReorderTargetId("");
+                    setReorderStatus(`Cross-book swaps disabled. Choose a target in ${reorderSourceChapter.bookName}.`);
+                  }
+                }} />
+                <div className="rounded-md border border-white/8 bg-white/[0.03] px-2.5 py-2">
+                  <div className="flex items-center justify-between gap-3 text-[10px] text-white/38">
+                    <span>Source coord</span>
+                    <span className="font-mono text-right text-white/60">{formatVec(reorderSourcePosition)}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-white/38">
+                    <span>Target coord</span>
+                    <span className="font-mono text-right text-white/60">{formatVec(reorderTargetPosition)}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleApplyReorderSwap}
+                    disabled={!reorderSourceId || !reorderTargetId}
+                    className="col-span-2 rounded border border-emerald-300/20 bg-emerald-300/[0.08] px-2 py-1.5 text-[10px] text-emerald-100/70 transition-colors hover:bg-emerald-300/[0.14] disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    Swap coordinates
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearReorder}
+                    className="rounded border border-white/10 bg-white/[0.05] px-2 py-1.5 text-[10px] text-white/55 transition-colors hover:bg-white/[0.09] hover:text-white/75"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <p className="text-[10px] leading-relaxed text-white/34">{reorderStatus}</p>
               </BuilderSection>
 
               <BuilderSection label="Game Test">

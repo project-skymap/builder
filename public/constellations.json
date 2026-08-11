@@ -2194,32 +2194,20 @@
       "linePaths": [],
       "lineSegments": [
         {
-          "from": "C:REV:1",
-          "to": "C:REV:12",
+          "from": "C:REV:2",
+          "to": "C:REV:16",
           "weight": "normal",
           "color": "#b678ff"
         },
         {
-          "from": "C:REV:12",
-          "to": "C:REV:6",
-          "weight": "normal",
-          "color": "#b678ff"
-        },
-        {
-          "from": "C:REV:6",
-          "to": "C:REV:2",
-          "weight": "normal",
-          "color": "#b678ff"
-        },
-        {
-          "from": "C:REV:6",
-          "to": "C:REV:3",
-          "weight": "normal",
-          "color": "#b678ff"
-        },
-        {
-          "from": "C:REV:12",
+          "from": "C:REV:16",
           "to": "C:REV:22",
+          "weight": "normal",
+          "color": "#b678ff"
+        },
+        {
+          "from": "C:REV:16",
+          "to": "C:REV:19",
           "weight": "normal",
           "color": "#b678ff"
         }
