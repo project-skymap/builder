@@ -445,7 +445,7 @@ export default function PreviewPage() {
   const [useVisibleHemisphere, setUseVisibleHemisphere] = useState(false);
   const [edgePanEnabled, setEdgePanEnabled] = useState(false);
   const [viewMode, setViewMode] = useState<PlanetariumViewMode>("zenith");
-  const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(22);
+  const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(10);
   const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(80);
   const [starSizeExponent, setStarSizeExponent] = useState(4.0);
   const [starSizeScale, setStarSizeScale] = useState(1.25);
@@ -755,7 +755,7 @@ export default function PreviewPage() {
         overlapPaddingPx: 2,
         reappearDelayMs: 60,
         classes: {
-          chapter: { maxFov: chapterLabelMaxFov, maxOverlapPx: 12 },
+          chapter: { maxFov: chapterLabelMaxFov, maxOverlapPx: 12, fovFadeFeatherDeg: 12 },
         },
       },
       showConstellationLines: triangulationMode !== "off",
