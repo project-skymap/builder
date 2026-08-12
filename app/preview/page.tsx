@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getViewModeProfile } from "@project-skymap/library";
-import type { ConstellationConfig, HierarchyFilter, HorizonThemeConfig, PlanetariumViewMode, SceneNode, StarArrangement, StarMapConfig, StarMapHandle } from "@project-skymap/library";
+import type { ConstellationConfig, HierarchyFilter, HorizonThemeConfig, PlanetariumViewMode, SceneFocus, SceneNode, StarArrangement, StarMapConfig, StarMapHandle } from "@project-skymap/library";
 import { StarMap } from "@project-skymap/library";
 import { CANON } from "../assign/canon";
 import type { Chapter } from "../assign/canon";
@@ -121,6 +121,29 @@ function getNodeChapter(node: SceneNode | null): Chapter | null {
 
 function getChapterNodeId(chapter: Chapter): string {
   return `C:${chapter.bookKey}:${chapter.chapterNumber}`;
+}
+
+/**
+ * "What am I looking at" readout, phrased at the granularity of the current zoom:
+ * a division on its own, then book + division, then chapter + division.
+ */
+function formatFocus(focus: SceneFocus | null): string {
+  if (!focus) return "—";
+
+  if (focus.level === "chapter") {
+    const chapter = getNodeChapter(focus.chapterNode);
+    if (chapter) return `${chapterTitle(chapter)}, ${chapter.divisionName}`;
+  }
+
+  if (focus.level === "chapter" || focus.level === "book") {
+    const book = focus.bookNode;
+    if (book) {
+      const division = book.meta?.division as string | undefined;
+      return division ? `${book.label}, ${division}` : book.label;
+    }
+  }
+
+  return focus.divisionNode?.label ?? "—";
 }
 
 function getArtworkBookKey(item: { anchors?: unknown }): string | null {
@@ -430,6 +453,7 @@ export default function PreviewPage() {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [currentFov, setCurrentFov] = useState(() => getViewModeProfile("zenith").defaultFov);
   const [currentCamera, setCurrentCamera] = useState<{ lon: number; lat: number; fov: number } | null>(null);
+  const [currentFocus, setCurrentFocus] = useState<SceneFocus | null>(null);
   const [showDivisionLabels, setShowDivisionLabels] = useState(false);
   const [showDivisionTint, setShowDivisionTint] = useState(true);
   const [showBookLabels, setShowBookLabels] = useState(true);
@@ -445,7 +469,12 @@ export default function PreviewPage() {
   const [useVisibleHemisphere, setUseVisibleHemisphere] = useState(false);
   const [edgePanEnabled, setEdgePanEnabled] = useState(false);
   const [viewMode, setViewMode] = useState<PlanetariumViewMode>("zenith");
-  const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(10);
+  const [divisionLabelMinFov, setDivisionLabelMinFov] = useState(60);
+  const [divisionLabelMaxFov, setDivisionLabelMaxFov] = useState(180);
+  const [bookLabelMinFov, setBookLabelMinFov] = useState(20);
+  const [bookLabelMaxFov, setBookLabelMaxFov] = useState(70);
+  const [chapterLabelMinFov, setChapterLabelMinFov] = useState(1);
+  const [chapterLabelMaxFov, setChapterLabelMaxFov] = useState(25);
   const [constellationBaseOpacity, setConstellationBaseOpacity] = useState(80);
   const [starSizeExponent, setStarSizeExponent] = useState(4.0);
   const [starSizeScale, setStarSizeScale] = useState(1.25);
@@ -755,7 +784,9 @@ export default function PreviewPage() {
         overlapPaddingPx: 2,
         reappearDelayMs: 60,
         classes: {
-          chapter: { maxFov: chapterLabelMaxFov, maxOverlapPx: 12, fovFadeFeatherDeg: 12 },
+          division: { minFov: divisionLabelMinFov, maxFov: divisionLabelMaxFov, priority: 1, fovFadeFeatherDeg: 8 },
+          book: { minFov: bookLabelMinFov, maxFov: bookLabelMaxFov, priority: 2, fovFadeFeatherDeg: 10 },
+          chapter: { minFov: chapterLabelMinFov, maxFov: chapterLabelMaxFov, priority: 3, maxOverlapPx: 12, fovFadeFeatherDeg: 12 },
         },
       },
       showConstellationLines: triangulationMode !== "off",
@@ -801,6 +832,11 @@ export default function PreviewPage() {
       },
     };
   }, [
+    divisionLabelMinFov,
+    divisionLabelMaxFov,
+    bookLabelMinFov,
+    bookLabelMaxFov,
+    chapterLabelMinFov,
     chapterLabelMaxFov,
     triangulationMode,
     constellationBaseOpacity,
@@ -1827,7 +1863,47 @@ export default function PreviewPage() {
                   </div>
                 )}
                 <SliderRow
-                  label="Chapter label FOV"
+                  label="Division label min FOV"
+                  value={divisionLabelMinFov}
+                  min={30}
+                  max={90}
+                  step={1}
+                  onChange={setDivisionLabelMinFov}
+                />
+                <SliderRow
+                  label="Division label max FOV"
+                  value={divisionLabelMaxFov}
+                  min={90}
+                  max={180}
+                  step={1}
+                  onChange={setDivisionLabelMaxFov}
+                />
+                <SliderRow
+                  label="Book label min FOV"
+                  value={bookLabelMinFov}
+                  min={5}
+                  max={40}
+                  step={1}
+                  onChange={setBookLabelMinFov}
+                />
+                <SliderRow
+                  label="Book label max FOV"
+                  value={bookLabelMaxFov}
+                  min={40}
+                  max={120}
+                  step={1}
+                  onChange={setBookLabelMaxFov}
+                />
+                <SliderRow
+                  label="Chapter label min FOV"
+                  value={chapterLabelMinFov}
+                  min={1}
+                  max={10}
+                  step={1}
+                  onChange={setChapterLabelMinFov}
+                />
+                <SliderRow
+                  label="Chapter label max FOV"
                   value={chapterLabelMaxFov}
                   min={8}
                   max={48}
@@ -1889,6 +1965,14 @@ export default function PreviewPage() {
                   <div className="flex items-center justify-between text-[10px] text-white/48">
                     <span>FOV</span>
                     <span className="text-white/80">{currentFov.toFixed(1)}°</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between text-[10px] text-white/48">
+                    <span>Level</span>
+                    <span className="text-white/80 capitalize">{currentFocus?.level ?? "—"}</span>
+                  </div>
+                  <div className="mt-1 flex items-start justify-between gap-2 text-[10px] text-white/48">
+                    <span className="shrink-0">Looking at</span>
+                    <span className="text-right text-white/80">{formatFocus(currentFocus)}</span>
                   </div>
                   {currentCamera ? (
                     <>
@@ -2053,6 +2137,7 @@ export default function PreviewPage() {
             config={config}
             className="h-full w-full"
             onFovChange={setCurrentFov}
+            onFocusChange={setCurrentFocus}
             onCameraChange={handleCameraChange}
             onSelect={handleSelectNode}
           />
